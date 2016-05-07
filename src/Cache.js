@@ -30,7 +30,6 @@ class Cache {
       if(cacheFile) {
         filePath = cacheFile;
         fs.exists(cacheFile, (res) => {
-          logger.debug(res);
           if(res) {
             cache = JSON.parse(fs.readFileSync(cacheFile));
             resolve();

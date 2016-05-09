@@ -32,10 +32,10 @@ class Store {
           .then((log) => this._oplog.join(log))
           .then((merged) => this._index.updateIndex(this._oplog, merged))
           .then(() => this.events.emit('readable', this.dbname))
-          .then(() => this.events);
+          .then(() => this);
       }
 
-      return Promise.resolve(this.events);
+      return Promise.resolve(this);
     });
   }
 

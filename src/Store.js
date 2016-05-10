@@ -31,10 +31,11 @@ class Store {
         return Log.fromIpfsHash(this._ipfs, cached)
           .then((log) => this._oplog.join(log))
           .then((merged) => this._index.updateIndex(this._oplog, merged))
-          .then(() => this.events.emit('readable', this.dbname))
+          .then(() => this.events.emit('ready', this.dbname))
           .then(() => this);
       }
 
+      this.events.emit('ready', this.dbname)
       return Promise.resolve(this);
     });
   }

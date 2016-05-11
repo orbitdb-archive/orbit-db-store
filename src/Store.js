@@ -57,8 +57,8 @@ class Store {
       .then(() => Cache.set(this.dbname, hash))
       .then(() => this._index.updateIndex(this._oplog, newItems))
       .then(() => {
-        if(newItems.length > 0)
-          this.events.emit('updated', this.dbname);
+        // if(newItems.length > 0)
+          this.events.emit('updated', this.dbname, newItems);
       })
       .then(() => newItems)
   }

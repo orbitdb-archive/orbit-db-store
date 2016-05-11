@@ -50,16 +50,15 @@ class Store {
 
     const oldCount = this._oplog.items.length;
     let newItems = [];
-    this.events.emit('load', this.dbname);
+    this.events.emit('sync', this.dbname);
     return Log.fromIpfsHash(this._ipfs, hash)
       .then((log) => this._oplog.join(log))
       .then((merged) => newItems = merged)
-      .then(() => Log.getIpfsHash(this._ipfs, this._oplog))
-      .then((hash) => Cache.set(this.dbname, hash))
+      .then(() => Cache.set(this.dbname, hash))
       .then(() => this._index.updateIndex(this._oplog, newItems))
       .then(() => {
         if(newItems.length > 0)
-          this.events.emit('readable', this.dbname);
+          this.events.emit('updated', this.dbname);
       })
       .then(() => newItems)
   }
@@ -74,11 +73,7 @@ class Store {
     let result, logHash;
     if(this._oplog) {
       return this._oplog.add(data)
-        .then((res) => {
-          result = res;
-          Object.assign(result.payload, { hash: res.hash })
-          return result;
-        })
+        .then((res) => result = res)
         .then(() => Log.getIpfsHash(this._ipfs, this._oplog))
         .then((hash) => logHash = hash)
         .then(() => this._lastWrite = logHash)

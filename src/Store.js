@@ -28,11 +28,12 @@ class Store {
     return Cache.loadCache(this.options.cacheFile).then(() => {
       const cached = Cache.get(this.dbname);
       if(cached) {
+        this._lastWrite = cached;
         return Log.fromIpfsHash(this._ipfs, cached)
           .then((log) => this._oplog.join(log))
           .then((merged) => this._index.updateIndex(this._oplog, merged))
           .then(() => this.events.emit('ready', this.dbname))
-          .then(() => this);
+          .then(() => this)
       }
 
       this.events.emit('ready', this.dbname)
@@ -45,12 +46,15 @@ class Store {
   }
 
   sync(hash) {
-    if(!hash || hash === this._lastWrite)
+    if(!hash || hash === this._lastWrite) {
+      this.events.emit('updated', this.dbname, []);
       return Promise.resolve([]);
+    }
 
     const oldCount = this._oplog.items.length;
     let newItems = [];
     this.events.emit('sync', this.dbname);
+    this._lastWrite = hash;
     return Log.fromIpfsHash(this._ipfs, hash)
       .then((log) => this._oplog.join(log))
       .then((merged) => newItems = merged)

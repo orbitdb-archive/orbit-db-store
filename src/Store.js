@@ -46,23 +46,29 @@ class Store {
   }
 
   sync(hash) {
+    // console.log("SYNC", hash, this.id, this._lastWrite);
     if(!hash || hash === this._lastWrite) {
-      this.events.emit('updated', this.dbname, []);
+      // console.log("END22222!", hash, this._lastWrite, this.id)
+      // this.events.emit('updated', this.dbname, []);
       return Promise.resolve([]);
     }
 
+    // console.log("NO END!")
     const oldCount = this._oplog.items.length;
     let newItems = [];
     this.events.emit('sync', this.dbname);
     this._lastWrite = hash;
+    let startTime = new Date().getTime();
     return Log.fromIpfsHash(this._ipfs, hash)
       .then((log) => this._oplog.join(log))
       .then((merged) => newItems = merged)
       .then(() => Cache.set(this.dbname, hash))
       .then(() => this._index.updateIndex(this._oplog, newItems))
       .then(() => {
-        // if(newItems.length > 0)
+        if(newItems.length > 0) {
+          console.log("Sync took", (new Date().getTime() - startTime) + "ms", this.id)
           this.events.emit('updated', this.dbname, newItems);
+        }
       })
       .then(() => newItems)
   }

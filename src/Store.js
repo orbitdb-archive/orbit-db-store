@@ -56,6 +56,7 @@ class Store {
     let newItems = [];
     this.events.emit('sync', this.dbname);
     this._lastWrite.push(hash);
+    const startTime = new Date().getTime();
     return Log.fromIpfsHash(this._ipfs, hash)
       .then((log) => this._oplog.join(log))
       .then((merged) => newItems = merged)

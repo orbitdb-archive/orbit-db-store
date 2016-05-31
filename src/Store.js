@@ -19,7 +19,7 @@ class Store {
     this._index = new this.options.Index(this.id);
     this._oplog = null;
     this._ipfs = ipfs;
-    this._lastWrite = null;
+    this._lastWrite = [];
   }
 
   use() {
@@ -28,7 +28,7 @@ class Store {
     return Cache.loadCache(this.options.cacheFile).then(() => {
       const cached = Cache.get(this.dbname);
       if(cached) {
-        this._lastWrite = cached;
+        this._lastWrite.push(cached);
         return Log.fromIpfsHash(this._ipfs, cached)
           .then((log) => this._oplog.join(log))
           .then((merged) => this._index.updateIndex(this._oplog, merged))
@@ -46,19 +46,16 @@ class Store {
   }
 
   sync(hash) {
-    // console.log("SYNC", hash, this.id, this._lastWrite);
-    if(!hash || hash === this._lastWrite) {
-      // console.log("END22222!", hash, this._lastWrite, this.id)
-      // this.events.emit('updated', this.dbname, []);
+    // if(!hash || this._lastWrite.indexOf(hash) > -1) {
+    if(!hash) {
+      this.events.emit('updated', this.dbname, []);
       return Promise.resolve([]);
     }
 
-    // console.log("NO END!")
     const oldCount = this._oplog.items.length;
     let newItems = [];
     this.events.emit('sync', this.dbname);
-    this._lastWrite = hash;
-    let startTime = new Date().getTime();
+    this._lastWrite.push(hash);
     return Log.fromIpfsHash(this._ipfs, hash)
       .then((log) => this._oplog.join(log))
       .then((merged) => newItems = merged)
@@ -67,8 +64,8 @@ class Store {
       .then(() => {
         if(newItems.length > 0) {
           console.log("Sync took", (new Date().getTime() - startTime) + "ms", this.id)
-          this.events.emit('updated', this.dbname, newItems);
         }
+        this.events.emit('updated', this.dbname, newItems);
       })
       .then(() => newItems)
   }
@@ -86,7 +83,7 @@ class Store {
         .then((res) => result = res)
         .then(() => Log.getIpfsHash(this._ipfs, this._oplog))
         .then((hash) => logHash = hash)
-        .then(() => this._lastWrite = logHash)
+        .then(() => this._lastWrite.push(logHash))
         .then(() => Cache.set(this.dbname, logHash))
         .then(() => this._index.updateIndex(this._oplog, [result]))
         .then(() => this.events.emit('data', this.dbname, logHash))

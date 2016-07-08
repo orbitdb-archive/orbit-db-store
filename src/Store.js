@@ -5,6 +5,8 @@ const Log          = require('ipfs-log');
 const Index        = require('./Index');
 const Cache        = require('./Cache');
 
+const DefaultMaxHistory = 256;
+
 class Store {
   constructor(ipfs, id, dbname, options) {
     this.id = id;
@@ -12,8 +14,9 @@ class Store {
     this.events = new EventEmitter();
 
     if(!options) options = {};
-    if(!options.Index) Object.assign(options, { Index: Index });
-    if(!options.cacheFile) Object.assign(options, { cacheFile: null });
+    if(options.Index === undefined) Object.assign(options, { Index: Index });
+    if(options.cacheFile === undefined) Object.assign(options, { cacheFile: null });
+    if(options.maxHistory === undefined) Object.assign(options, { maxHistory: DefaultMaxHistory });
 
     this.options = options;
     this._index = new this.options.Index(this.id);
@@ -29,7 +32,7 @@ class Store {
       const cached = Cache.get(this.dbname);
       if(cached) {
         if(this._lastWrite.indexOf(cached) > -1) this._lastWrite.push(cached);
-        return Log.fromIpfsHash(this._ipfs, cached)
+        return Log.fromIpfsHash(this._ipfs, cached, this.options)
           .then((log) => this._oplog.join(log))
           .then((merged) => this._index.updateIndex(this._oplog, merged))
           .then(() => this.events.emit('ready', this.dbname))
@@ -52,12 +55,11 @@ class Store {
       return Promise.resolve([]);
     }
 
-    // const oldCount = this._oplog.items.length;
     let newItems = [];
     this.events.emit('sync', this.dbname);
     this._lastWrite.push(hash);
     const startTime = new Date().getTime();
-    return Log.fromIpfsHash(this._ipfs, hash)
+    return Log.fromIpfsHash(this._ipfs, hash, this.options)
       .then((log) => this._oplog.join(log))
       .then((merged) => newItems = merged)
       .then(() => Cache.set(this.dbname, hash))

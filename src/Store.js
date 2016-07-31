@@ -49,8 +49,7 @@ class Store {
   }
 
   sync(hash) {
-    // if(!hash || this._lastWrite.indexOf(hash) > -1) {
-    if(!hash) {
+    if(!hash || this._lastWrite.indexOf(hash) > -1) {
       this.events.emit('updated', this.dbname, []);
       return Promise.resolve([]);
     }

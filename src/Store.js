@@ -19,22 +19,33 @@ class Store {
     if(options.maxHistory === undefined) Object.assign(options, { maxHistory: DefaultMaxHistory });
 
     this.options = options;
-    this._index = new this.options.Index(this.id);
-    this._oplog = null;
     this._ipfs = ipfs;
+    this._index = new this.options.Index(this.id);
+    this._oplog = new Log(this._ipfs, this.id, this.dbname, this.options);
     this._lastWrite = [];
   }
 
-  use() {
+  loadHistory(hash) {
+    if(this._lastWrite.indexOf(hash) > -1)
+      return Promise.resolve([]);
+
     this.events.emit('load', this.dbname);
-    this._oplog = new Log(this._ipfs, this.id, this.dbname, this.options);
+
     return Cache.loadCache(this.options.cacheFile).then(() => {
-      const cached = Cache.get(this.dbname);
+      const cached = hash || Cache.get(this.dbname);
+      console.log("CACHED!", cached)
       if(cached) {
         if(this._lastWrite.indexOf(cached) > -1) this._lastWrite.push(cached);
         return Log.fromIpfsHash(this._ipfs, cached, this.options)
-          .then((log) => this._oplog.join(log))
-          .then((merged) => this._index.updateIndex(this._oplog, merged))
+          .then((log) => {
+            // console.log("JOINNNNN!!!", log)
+            return this._oplog.join(log)
+          })
+          .then((merged) => {
+            // console.log("MERGED!!!", merged)
+            this._index.updateIndex(this._oplog, merged)
+            this.events.emit('history', this.dbname, merged)
+          })
           .then(() => this.events.emit('ready', this.dbname))
           .then(() => this)
       }
@@ -50,7 +61,7 @@ class Store {
 
   sync(hash) {
     if(!hash || this._lastWrite.indexOf(hash) > -1) {
-      this.events.emit('updated', this.dbname, []);
+      // this.events.emit('data', this.dbname);
       return Promise.resolve([]);
     }
 
@@ -67,7 +78,7 @@ class Store {
         // if(newItems.length > 0) {
         //   console.log("Sync took", (new Date().getTime() - startTime) + "ms", this.id)
         // }
-        this.events.emit('updated', this.dbname, newItems);
+        newItems.reverse().forEach((e) => this.events.emit('data', this.dbname, e))
       })
       .then(() => newItems)
   }
@@ -88,7 +99,8 @@ class Store {
         .then(() => this._lastWrite.push(logHash))
         .then(() => Cache.set(this.dbname, logHash))
         .then(() => this._index.updateIndex(this._oplog, [result]))
-        .then(() => this.events.emit('data', this.dbname, logHash))
+        .then(() => this.events.emit('write', this.dbname, logHash))
+        .then(() => this.events.emit('data', this.dbname, result))
         .then(() => result.hash);
     }
   }

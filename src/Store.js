@@ -33,16 +33,12 @@ class Store {
 
     return Cache.loadCache(this.options.cacheFile).then(() => {
       const cached = hash || Cache.get(this.dbname);
-      console.log("CACHED!", cached)
+      // console.log("CACHED!", hash, cached)
       if(cached) {
         if(this._lastWrite.indexOf(cached) > -1) this._lastWrite.push(cached);
         return Log.fromIpfsHash(this._ipfs, cached, this.options)
-          .then((log) => {
-            // console.log("JOINNNNN!!!", log)
-            return this._oplog.join(log)
-          })
+          .then((log) => this._oplog.join(log))
           .then((merged) => {
-            // console.log("MERGED!!!", merged)
             this._index.updateIndex(this._oplog, merged)
             this.events.emit('history', this.dbname, merged)
           })
@@ -56,6 +52,7 @@ class Store {
   }
 
   close() {
+    this.delete();
     this.events.emit('close', this.dbname);
   }
 
@@ -85,8 +82,7 @@ class Store {
 
   delete() {
     this._index = new this.options.Index(this.id);
-    if(this._oplog)
-      this._oplog.clear();
+    this._oplog = new Log(this._ipfs, this.id, this.dbname, this.options);
   }
 
   _addOperation(data) {

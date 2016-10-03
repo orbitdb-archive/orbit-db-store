@@ -4,19 +4,21 @@ const EventEmitter = require('events').EventEmitter
 const Log          = require('ipfs-log')
 const Index        = require('./Index')
 
-const DefaultMaxHistory = 256
+const DefaultOptions = {
+  Index: Index,
+  maxHistory: 256
+}
 
 class Store {
-  constructor(ipfs, id, dbname, options) {
+  constructor(ipfs, id, dbname, options = {}) {
     this.id = id
     this.dbname = dbname
     this.events = new EventEmitter()
 
-    if(!options) options = {}
-    if(options.Index === undefined) Object.assign(options, { Index: Index })
-    if(options.maxHistory === undefined) Object.assign(options, { maxHistory: DefaultMaxHistory })
+    let opts = Object.assign({}, DefaultOptions)
+    Object.assign(opts, options)
 
-    this.options = options
+    this.options = opts
     this._ipfs = ipfs
     this._index = new this.options.Index(this.id)
     this._oplog = new Log(this._ipfs, this.id, this.dbname, this.options)
@@ -24,7 +26,7 @@ class Store {
   }
 
   loadHistory(hash) {
-    if(this._lastWrite.indexOf(hash) > -1)
+    if(this._lastWrite.includes(hash))
       return Promise.resolve([])
 
     if(hash) this._lastWrite.push(hash)
@@ -45,13 +47,8 @@ class Store {
     }
   }
 
-  close() {
-    this.delete()
-    this.events.emit('close', this.dbname)
-  }
-
   sync(hash) {
-    if(!hash || this._lastWrite.indexOf(hash) > -1)
+    if(!hash || this._lastWrite.includes(hash))
       return Promise.resolve([])
 
     let newItems = []
@@ -69,6 +66,12 @@ class Store {
       .then(() => newItems)
   }
 
+  close() {
+    this.delete()
+    this.events.emit('close', this.dbname)
+  }
+
+  // TODO: should make private?
   delete() {
     this._index = new this.options.Index(this.id)
     this._oplog = new Log(this._ipfs, this.id, this.dbname, this.options)

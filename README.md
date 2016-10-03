@@ -14,14 +14,21 @@ TODO:
 - [orbit-db-feedstore](https://github.com/haadcode/orbit-db-feedstore)
 - [orbit-db-counterstore](https://github.com/haadcode/orbit-db-counterstore)
 
+### Requirements
+- Node.js >= 6.0
+- npm >= 3.0
+
+*TODO: ES5 transpiled dist build for node < 6 and browsers*
+
 ### Events
 A store has an event emitter which emits the following events. You can attach to the events at `store.events`. All events contain the name of the emitting store as the first parameter.
 
-- `load` before initializing the store from cache and 
-- `ready` after the store has been initialized
+- `data` ***(storeName: string, item: Object)*** - after an entry was added to the store. item == the operation that was applied to the store.
+- `load` ***(storeName: string, hash: string)*** - before loading the operations log from cache. hash == the cached operations log in  IPFS.
+- `history` ***(storeName: string, items: Array<Object>)*** - after loading the operations log. items == all items that were added to the store from history.
+- `ready` - after the loading the operations log.
 - `sync` before merging the store with another store
 - `updated` after the store was merged with another store AND new items were added to the store
-- `data` after an entry was added locally to the store
 - `close` after the store was uninitialized and closed
 
 Example:

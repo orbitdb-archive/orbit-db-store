@@ -21,7 +21,7 @@ class Store {
     this.options = opts
     this._ipfs = ipfs
     this._index = new this.options.Index(this.id)
-    this._oplog = new Log(this._ipfs, this.id, this.dbname, this.options)
+    this._oplog = new Log(this._ipfs, this.id, this.options)
     this._lastWrite = []
   }
 
@@ -74,7 +74,7 @@ class Store {
   // TODO: should make private?
   delete() {
     this._index = new this.options.Index(this.id)
-    this._oplog = new Log(this._ipfs, this.id, this.dbname, this.options)
+    this._oplog = new Log(this._ipfs, this.id, this.options)
   }
 
   _addOperation(data) {

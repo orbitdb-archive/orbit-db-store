@@ -32,7 +32,7 @@ class Store {
     if(hash) this._lastWrite.push(hash)
     this.events.emit('load', this.dbname, hash)
 
-    if(hash) {
+    if(hash && options.maxHistory > 0) {
       return Log.fromIpfsHash(this._ipfs, hash, this.options)
         .then((log) => this._oplog.join(log))
         .then((merged) => {

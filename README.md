@@ -15,21 +15,57 @@ Base class for [orbit-db](https://github.com/haadcode/orbit-db) data stores.
 - Node.js >= 6.0
 - npm >= 3.0
 
-### Events
-A store has an event emitter which emits the following events. You can attach to the events at `store.events`. All events contain the name of the emitting store as the first parameter.
+### events
 
-- `data` ***(storeName: string, item: Object)*** - after an entry was added to the store. item == the operation that was applied to the store.
-- `load` ***(storeName: string, hash: string)*** - before loading the operations log from cache. hash == the cached operations log in  IPFS.
-- `history` ***(storeName: string, items: Array<Object>)*** - after loading the operations log. items == all items that were added to the store from history.
-- `ready` - after the loading the operations log.
-- `sync` before merging the store with another store
-- `updated` after the store was merged with another store AND new items were added to the store
-- `close` after the store was uninitialized and closed
+  Store has an `events` ([EventEmitter](https://nodejs.org/api/events.html)) object that emits events that describe what's happening in the database.
 
-Example:
-```javascript
-store.events.on('load', (name) => console.log('Loading', name))
-```
+  - `data` - (dbname, event)
+    
+    Emitted after an entry was added to the database
+
+    ```javascript
+    db.events.on('data', (dbname, event) => ... )
+    ```
+
+  - `sync` - (dbname)
+
+    Emitted before starting a database sync with a peer.
+
+    ```javascript
+    db.events.on('sync', (dbname) => ... )
+    ```
+
+  - `load` - (dbname, hash)
+
+    Emitted before loading the database history. *hash* is the hash from which the history is loaded from.
+
+    ```javascript
+    db.events.on('load', (dbname, hash) => ... )
+    ```
+
+  - `history` - (dbname, entries)
+
+    Emitted after loading the database history. *entries* is an Array of entries that were loaded.
+
+    ```javascript
+    db.events.on('history', (dbname, entries) => ... )
+    ```
+
+  - `ready` - (dbname)
+
+    Emitted after fully loading the database history.
+
+    ```javascript
+    db.events.on('ready', (dbname) => ... )
+    ```
+
+  - `write` - (dbname, hash)
+
+    Emitted after an entry was added locally to the database. *hash* is the IPFS hash of the latest state of the database.
+
+    ```javascript
+    db.events.on('write', (dbname, hash) => ... )
+    ```
 
 ### API
 #### Public methods

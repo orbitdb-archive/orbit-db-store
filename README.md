@@ -1,24 +1,19 @@
 # orbit-db-store
 
+[![npm version](https://badge.fury.io/js/orbit-db-store.svg)](https://badge.fury.io/js/orbit-db-store)
+
 Base class for [orbit-db](https://github.com/haadcode/orbit-db) data stores.
-
-**Work in progress!**
-
-TODO:
-- describe indices and how they work
-- install instructions, more API usage examples
 
 ### Used in
 - [orbit-db-kvstore](https://github.com/haadcode/orbit-db-kvstore)
 - [orbit-db-eventstore](https://github.com/haadcode/orbit-db-eventstore)
 - [orbit-db-feedstore](https://github.com/haadcode/orbit-db-feedstore)
 - [orbit-db-counterstore](https://github.com/haadcode/orbit-db-counterstore)
+- [orbit-db-docstore](https://github.com/shamb0t/orbit-db-docstore)
 
 ### Requirements
 - Node.js >= 6.0
 - npm >= 3.0
-
-*TODO: ES5 transpiled dist build for node < 6 and browsers*
 
 ### Events
 A store has an event emitter which emits the following events. You can attach to the events at `store.events`. All events contain the name of the emitting store as the first parameter.
@@ -64,6 +59,8 @@ this._addOperation({
 ### Creating Custom Data Stores
 You can create a custom data stores that stores data in a way you need it to. To do this, you need to import `orbit-db-store` to your custom store and extend your store ckass from orbit-db-store's `Store`. Below is the `orbit-db-kvstore` which is a custom data store for `orbit-db`.
 
+*TODO: describe indices and how they work*
+
 ```javascript
 const Store         = require('orbit-db-store');
 const KeyValueIndex = require('./KeyValueIndex');
@@ -107,3 +104,11 @@ class KeyValueStore extends Store {
 
 module.exports = KeyValueStore;
 ```
+
+## Contributing
+
+See [orbit-db's contributing guideline](https://github.com/haadcode/orbit-db#contributing).
+
+## License
+
+[MIT](LICENSE) ©️ 2016 Haadcode

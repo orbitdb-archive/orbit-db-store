@@ -25,6 +25,14 @@ class Store {
     this._lastWrite = []
   }
 
+  _onLoadHistory(amount) {
+    this.events.emit('load.start', this.dbname, amount)
+  }
+
+  _onLoadProgress(amount) {
+    this.events.emit('load.progress', this.dbname, amount)
+  }
+
   loadHistory(hash) {
     if(this._lastWrite.includes(hash))
       return Promise.resolve([])
@@ -34,10 +42,17 @@ class Store {
 
     if(hash && this.options.maxHistory > 0) {
       return Log.fromIpfsHash(this._ipfs, hash, this.options)
-        .then((log) => this._oplog.join(log))
+        .then((log) => {
+          this._oplog.events.on('history', this._onLoadHistory.bind(this))
+          this._oplog.events.on('progress', this._onLoadProgress.bind(this))
+          return this._oplog.join(log)
+        })
         .then((merged) => {
+          this._oplog.events.removeListener('history', this._onLoadHistory)
+          this._oplog.events.removeListener('progress', this._onLoadProgress)
           this._index.updateIndex(this._oplog, merged)
           this.events.emit('history', this.dbname, merged)
+          this.events.emit('load.end', this.dbname, merged)
         })
         .then(() => this.events.emit('ready', this.dbname))
         .then(() => this)
@@ -56,9 +71,22 @@ class Store {
     this.events.emit('sync', this.dbname)
     const startTime = new Date().getTime()
     return Log.fromIpfsHash(this._ipfs, hash, this.options)
-      .then((log) => this._oplog.join(log))
-      .then((merged) => newItems = merged)
-      .then(() => this._index.updateIndex(this._oplog, newItems))
+        .then((log) => {
+          this._oplog.events.on('history', this._onLoadHistory.bind(this))
+          this._oplog.events.on('progress', this._onLoadProgress.bind(this))
+          return this._oplog.join(log)
+        })
+        .then((merged) => {
+          this._oplog.events.removeListener('history', this._onLoadHistory)
+          this._oplog.events.removeListener('progress', this._onLoadProgress)
+          newItems = merged
+          this._index.updateIndex(this._oplog, newItems)
+          this.events.emit('load.end', this.dbname, newItems)
+        })
+
+      // .then((log) => this._oplog.join(log))
+      // .then((merged) => newItems = merged)
+      // .then(() => this._index.updateIndex(this._oplog, newItems))
       .then(() => {
         newItems.reverse()
           .forEach((e) => this.events.emit('data', this.dbname, e))

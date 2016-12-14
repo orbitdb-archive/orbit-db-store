@@ -9,6 +9,6 @@
   "author": "Haad",
   "license": "MIT",
   "dependencies": {
-    "ipfs-log": "^1.6.0-beta.6"
+    "ipfs-log": "^1.6.0-beta.7"
   }
 }

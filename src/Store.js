@@ -23,6 +23,9 @@ class Store {
     this._index = new this.options.Index(this.id)
     this._oplog = new Log(this._ipfs, this.id, this.options)
     this._lastWrite = []
+
+    this._oplog.events.on('history', this._onLoadHistory.bind(this))
+    this._oplog.events.on('progress', this._onLoadProgress.bind(this))
   }
 
   _onLoadHistory(amount) {
@@ -38,18 +41,18 @@ class Store {
       return Promise.resolve([])
 
     if(hash) this._lastWrite.push(hash)
-    this.events.emit('load', this.dbname, hash)
 
     if(hash && this.options.maxHistory > 0) {
+      this.events.emit('load', this.dbname, hash)
       return Log.fromIpfsHash(this._ipfs, hash, this.options)
         .then((log) => {
-          this._oplog.events.on('history', this._onLoadHistory.bind(this))
-          this._oplog.events.on('progress', this._onLoadProgress.bind(this))
+          // this._oplog.events.on('history', this._onLoadHistory.bind(this))
+          // this._oplog.events.on('progress', this._onLoadProgress.bind(this))
           return this._oplog.join(log)
         })
         .then((merged) => {
-          this._oplog.events.removeListener('history', this._onLoadHistory)
-          this._oplog.events.removeListener('progress', this._onLoadProgress)
+          // this._oplog.events.removeListener('history', this._onLoadHistory)
+          // this._oplog.events.removeListener('progress', this._onLoadProgress)
           this._index.updateIndex(this._oplog, merged)
           this.events.emit('history', this.dbname, merged)
           this.events.emit('load.end', this.dbname, merged)
@@ -72,13 +75,13 @@ class Store {
     const startTime = new Date().getTime()
     return Log.fromIpfsHash(this._ipfs, hash, this.options)
         .then((log) => {
-          this._oplog.events.on('history', this._onLoadHistory.bind(this))
-          this._oplog.events.on('progress', this._onLoadProgress.bind(this))
+          // this._oplog.events.on('history', this._onLoadHistory.bind(this))
+          // this._oplog.events.on('progress', this._onLoadProgress.bind(this))
           return this._oplog.join(log)
         })
         .then((merged) => {
-          this._oplog.events.removeListener('history', this._onLoadHistory)
-          this._oplog.events.removeListener('progress', this._onLoadProgress)
+          // this._oplog.events.removeListener('history', this._onLoadHistory)
+          // this._oplog.events.removeListener('progress', this._onLoadProgress)
           newItems = merged
           this._index.updateIndex(this._oplog, newItems)
           this.events.emit('load.end', this.dbname, newItems)
@@ -88,8 +91,9 @@ class Store {
       // .then((merged) => newItems = merged)
       // .then(() => this._index.updateIndex(this._oplog, newItems))
       .then(() => {
-        newItems.reverse()
-          .forEach((e) => this.events.emit('data', this.dbname, e))
+        this.events.emit('history', this.dbname, newItems)
+        // newItems.reverse()
+        //   .forEach((e) => this.events.emit('data', this.dbname, e))
       })
       .then(() => newItems)
   }

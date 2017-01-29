@@ -67,7 +67,7 @@ class Store {
 
   sync(hash) {
     if(!hash || this._lastWrite.includes(hash))
-      return Promise.resolve([])
+      return Promise.resolve(hash)
 
     let newItems = []
     if(hash) this._lastWrite.push(hash)
@@ -95,7 +95,7 @@ class Store {
         // newItems.reverse()
         //   .forEach((e) => this.events.emit('data', this.dbname, e))
       })
-      .then(() => newItems)
+      .then(() => Log.getIpfsHash(this._ipfs, this._oplog))
   }
 
   close() {

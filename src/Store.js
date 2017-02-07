@@ -92,8 +92,8 @@ class Store {
       // .then(() => this._index.updateIndex(this._oplog, newItems))
       .then(() => {
         this.events.emit('history', this.dbname, newItems)
-        // newItems.reverse()
-        //   .forEach((e) => this.events.emit('data', this.dbname, e))
+        newItems.slice().reverse()
+          .forEach((e) => this.events.emit('data', this.dbname, e))
       })
       .then(() => Log.getIpfsHash(this._ipfs, this._oplog))
   }

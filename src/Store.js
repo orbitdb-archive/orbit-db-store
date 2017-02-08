@@ -2,17 +2,19 @@
 
 const EventEmitter = require('events').EventEmitter
 const Log = require('ipfs-log')
+const Cache = require('orbit-db-cache')
 const Index = require('./Index')
 
 const DefaultOptions = {
   Index: Index,
-  maxHistory: 256
+  maxHistory: 256,
+  cachePath: './orbit-db'
 }
 
 class Store {
-  constructor(ipfs, id, dbname, options = {}) {
+  constructor(ipfs, id, dbname, options) {
     this.id = id
-    this.dbname = dbname
+    this.dbname = dbname || ''
     this.events = new EventEmitter()
 
     let opts = Object.assign({}, DefaultOptions)
@@ -23,20 +25,34 @@ class Store {
     this._index = new this.options.Index(this.id)
     this._oplog = Log.create(this._ipfs)
     this._lastWrite = []
+
+    this._cache = new Cache(this.options.cachePath, this.dbname)
+  }
+
+  load() {
+    return this._cache.load()
+      .then(() => {
+        const hash = this._cache.get(this.dbname)
+        return this.sync(hash, this.options.maxHistory)
+      })
+      .then(() => this.events.emit('ready'))
   }
 
   sync(hash, maxHistory = -1) {
     if(!hash || this._lastWrite.includes(hash) || maxHistory === 0) {
-      this.events.emit('ready', this.dbname)
+      // this.events.emit('synced', this.dbname)
       return Promise.resolve(hash)
     }
 
     if(hash) this._lastWrite.push(hash)
     this.events.emit('sync', this.dbname)
+
     return this._mergeWith(hash, maxHistory)
-      .then(() => {
-        this.events.emit('ready', this.dbname)
-        return Log.toMultihash(this._ipfs, this._oplog)
+      .then(() => Log.toMultihash(this._ipfs, this._oplog))
+      .then((hash) => {
+        this._cache.set(this.dbname, hash)
+        this.events.emit('synced', this.dbname)
+        return hash
       })
   }
 
@@ -55,11 +71,14 @@ class Store {
       return Log.append(this._ipfs, this._oplog, data)
         .then((res) => this._oplog = res)
         .then(() => Log.toMultihash(this._ipfs, this._oplog))
-        .then((hash) => {
-          this._lastWrite.push(hash)
+        .then((hash) => logHash = hash)
+        .then(() => this._cache.set(this.dbname, logHash))
+        .then(() => {
+          const entryHash = this._oplog.items[this._oplog.items.length - 1].hash
+          this._lastWrite.push(logHash)
           this._index.updateIndex(this._oplog)
-          this.events.emit('write', this.dbname, hash, this._oplog.toJSON())
-          return this._oplog.items[this._oplog.items.length - 1].hash
+          this.events.emit('write', this.dbname, logHash, this._oplog.items[this._oplog.items.length - 1])
+          return entryHash
         })
     }
   }

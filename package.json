@@ -9,6 +9,7 @@
   "author": "Haad",
   "license": "MIT",
   "dependencies": {
-    "ipfs-log": "github:haadcode/ipfs-log#feat\/immutable"
+    "ipfs-log": "github:haadcode/ipfs-log#feat\/immutable",
+    "orbit-db-cache": "~0.0.1"
   }
 }

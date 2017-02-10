@@ -23,7 +23,7 @@ class Store {
     this.options = opts
     this._ipfs = ipfs
     this._index = new this.options.Index(this.id)
-    this._oplog = Log.create(this._ipfs)
+    this._oplog = Log.create()
     this._lastWrite = []
 
     this._cache = new Cache(this.options.cachePath, this.dbname)
@@ -47,6 +47,7 @@ class Store {
     if(hash) this._lastWrite.push(hash)
     this.events.emit('sync', this.dbname)
 
+    // TODO: doesn't need to return the log hash, that's already cached here
     return this._mergeWith(hash, maxHistory)
       .then(() => Log.toMultihash(this._ipfs, this._oplog))
       .then((hash) => {

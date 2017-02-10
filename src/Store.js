@@ -38,6 +38,18 @@ class Store {
       .then(() => this.events.emit('ready'))
   }
 
+  loadMore(amount) {
+    this.events.emit('sync', this.dbname)
+    return Log.expand(this._ipfs, this._oplog, amount)
+      .then((log) => {
+        const len = this._oplog.items.length
+        this._oplog = log
+        this._index.updateIndex(this._oplog)
+        if (log.items.length > len)
+          this.events.emit('synced', this.dbname)
+      })
+  }
+
   sync(hash, maxHistory = -1) {
     if(!hash || this._lastWrite.includes(hash) || maxHistory === 0) {
       // this.events.emit('synced', this.dbname)
@@ -48,18 +60,22 @@ class Store {
     this.events.emit('sync', this.dbname)
 
     // TODO: doesn't need to return the log hash, that's already cached here
-    return this._mergeWith(hash, maxHistory)
+    return this._mergeWith(hash, this.options.maxHistory)
       .then(() => Log.toMultihash(this._ipfs, this._oplog))
       .then((hash) => {
-        this._cache.set(this.dbname, hash)
-        this.events.emit('synced', this.dbname)
-        return hash
+        return this._cache.set(this.dbname, hash)
+          .then(() => {
+            this.events.emit('synced', this.dbname)
+            return hash
+          })
       })
   }
 
   _mergeWith(hash, maxHistory) {
-    return Log.fromMultihash(this._ipfs, hash, maxHistory, this._onLoadProgress.bind(this))
+    const exclude = this._oplog.items.map((e) => e.hash)
+    return Log.fromMultihash(this._ipfs, hash, maxHistory, exclude, this._onLoadProgress.bind(this))
       .then((log) => {
+        const len = this._oplog.items.length
         this._oplog = Log.join(this._ipfs, this._oplog, log)
         this._index.updateIndex(this._oplog)
         return this

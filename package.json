@@ -9,6 +9,7 @@
   "author": "Haad",
   "license": "MIT",
   "dependencies": {
-    "ipfs-log": "^1.6.0-beta.7"
+    "ipfs-log": "~2.0.0",
+    "orbit-db-cache": "~0.0.6"
   }
 }

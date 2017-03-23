@@ -54,10 +54,13 @@ class Store {
           return Promise.resolve()
         }
       })
-      .then(() => Log.toMultihash(this._ipfs, this._oplog))
-      .then((hash) => this._cache.set(this.dbname, hash))
+      .then(() => {
+        if (this._oplog.length > 0) {
+          return Log.toMultihash(this._ipfs, this._oplog)
+            .then((hash) => this._cache.set(this.dbname, hash))
+        }
+      })
       .then((heads) => this.events.emit('ready', this.dbname))
-      .catch((e) => this.events.emit('error', e))
   }
 
   loadMore(amount) {
@@ -73,19 +76,25 @@ class Store {
         this.events.emit('synced', this.dbname)
         return newCount
       })
-      .catch((e) => this.events.emit('error', e))
   }
 
   loadMoreFrom(amount, entries) {
     // TODO: need to put this via the sync queue
+
+    // console.log("Load more from:", amount, entries)
     if (entries && !this.loadingMore) {
       this.loadingMore = true
       this.events.emit('sync', this.dbname)
 
       // TODO: move to LogUtils
-      const allTails = new EntrySet(this._oplog.tails)
+      const allTails = new EntrySet(this._oplog.tails)//EntryCollection.findTails(this._oplog.items)
       const tails = allTails.intersection(new EntrySet(entries.reverse())) // Why do we need to reverse?
 
+      if (allTails.keys.includes("QmdUMFtFdZTiaSmuomvB3QzrwpGakhqzvoJgmekHLZs2s6"))
+        debugger
+
+      // console.log("tails:", tails)
+      // console.log(tails.map(e => e.clock.time + ' ' + JSON.parse(e.payload.value).Post.content).join('\n'))
       return Log.expandFrom(this._ipfs, this._oplog, tails, amount)
         .then((log) => {
           this._oplog = log
@@ -93,7 +102,7 @@ class Store {
           this.loadingMore = false
           this.events.emit('synced', this.dbname)
         })
-        .catch((e) => this.events.emit('error', e))
+        .catch(e => console.error(e))
     }
   }
 

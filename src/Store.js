@@ -10,7 +10,8 @@ const Index = require('./Index')
 const DefaultOptions = {
   Index: Index,
   maxHistory: 256,
-  cachePath: './orbit-db'
+  cachePath: './orbit-db',
+  syncHistory: true,
 }
 
 class Store {
@@ -43,8 +44,10 @@ class Store {
       .then((hash) => {
         if (hash) {
           lastHash = hash
-          this.events.emit('sync', this.dbname)
-          return Log.fromMultihash(this._ipfs, hash, amount || this.options.maxHistory)
+          // this.events.emit('sync', this.dbname)
+          this.events.emit('load', this.dbname)
+          amount = amount ? amount : this.options.maxHistory
+          return Log.fromMultihash(this._ipfs, hash, amount, [], this._onLoadProgress.bind(this))
             .then((log) => {
               this._oplog = Log.join(this._oplog, log, -1, this._oplog.id)
               this._index.updateIndex(this._oplog)
@@ -54,13 +57,7 @@ class Store {
           return Promise.resolve()
         }
       })
-      .then(() => {
-        if (this._oplog.length > 0) {
-          return Log.toMultihash(this._ipfs, this._oplog)
-            .then((hash) => this._cache.set(this.dbname, hash))
-        }
-      })
-      .then((heads) => this.events.emit('ready', this.dbname))
+      .then((heads) => this.events.emit('ready', this.dbname, heads))
   }
 
   loadMore(amount) {
@@ -89,9 +86,6 @@ class Store {
       // TODO: move to LogUtils
       const allTails = new EntrySet(this._oplog.tails)//EntryCollection.findTails(this._oplog.items)
       const tails = allTails.intersection(new EntrySet(entries.reverse())) // Why do we need to reverse?
-
-      if (allTails.keys.includes("QmdUMFtFdZTiaSmuomvB3QzrwpGakhqzvoJgmekHLZs2s6"))
-        debugger
 
       // console.log("tails:", tails)
       // console.log(tails.map(e => e.clock.time + ' ' + JSON.parse(e.payload.value).Post.content).join('\n'))
@@ -130,7 +124,7 @@ class Store {
   }
 
   _syncFromHeads(heads, maxHistory, max, currentCount) {
-    if (!heads)
+    if (!heads || !Array.isArray(heads))
       return Promise.resolve()
 
     // TODO: doesn't need to return the log hash, that's already cached here
@@ -143,6 +137,7 @@ class Store {
     if (heads.length === 0 || exclude.find((e) => heads.map((a) => a.hash).indexOf(e) > -1))
       return Promise.resolve()
 
+    // console.log("SYNC FROM HEADS", maxHistory)
     this.events.emit('sync', this.dbname)
 
     const saveToIpfs = (head) => {
@@ -156,10 +151,10 @@ class Store {
     currentCount = currentCount || 0
     max = max ||this.options.maxHistory
 
-    // console.log("SYNC FROM", maxHistory, heads)
     return Promise.all(heads.map(saveToIpfs))
       .then((hashes) => {
-        return Log.fromEntry(this._ipfs, heads, maxHistory, exclude, this._onLoadProgress.bind(this))
+        // return Log.fromEntry(this._ipfs, heads, maxHistory, exclude, this._onLoadProgress.bind(this))
+        return Log.fromEntry(this._ipfs, heads, maxHistory, exclude, this._onSyncProgress.bind(this))
       })
       .then((log) => {
         const len = this._oplog.items.length
@@ -171,9 +166,10 @@ class Store {
           this._index.updateIndex(this._oplog)
 
           const newItemsCount = this._oplog.items.length - len
-          // console.log("Synced:", newItemsCount)
+          console.log("Synced:", newItemsCount)
           currentCount += newItemsCount
 
+          console.log("sync more?", this.options.syncHistory, currentCount, max)
           if (this.options.syncHistory && (max === -1 || currentCount < max)) {
             const newTails = this._oplog.tails.filter(e => e.next.length > 0)
             const uniqueNewTails = newTails.filter((e) => !prevTails.map(a => a.hash).includes(e.hash))
@@ -188,7 +184,8 @@ class Store {
 
             // console.log("we should fetch more?", isNewer, newer.length, newer, prevTails, newTails)
             if (hasNewerTails) {
-              this.sync(null, [newTails[newTails.length - 1]], this.options.maxHistory * 2, false, 32, currentCount)
+              console.log("has newer tails")
+              setImmediate(() => this.sync(null, [newTails[newTails.length - 1]], this.options.maxHistory * 2, false, 32, currentCount))
               return
             }
 
@@ -196,7 +193,8 @@ class Store {
             const shouldLoadFromHeads = prevHeads.length !== newHeads.length // If the length of the heads is different
               || newHeads.filter((e, idx) => e.hash !== prevHeads[idx].hash).length > 0 // Or if the heads are different than before merge
             if (shouldLoadFromHeads && newItemsCount > 1) {
-              this.sync(newHeads, null, this.options.maxHistory * 2, false, 32, currentCount)
+              console.log("has new heads")
+              setImmediate(() => this.sync(newHeads, null, this.options.maxHistory * 2, false, 32, currentCount))
             }
           }
         }
@@ -223,15 +221,17 @@ class Store {
 
     const exclude = this._oplog.items.map((e) => e.hash)
 
-    // console.log("SYNC FROM TAILS", maxHistory, tails)
+    // console.log("SYNC FROM TAILS", maxHistory)
     this.events.emit('sync', this.dbname)
 
-    const fetchLog = (hash) => Log.fromEntry(this._ipfs, hash, maxHistory, exclude, this._onLoadProgress.bind(this))
+    // const fetchLog = (hash) => Log.fromEntry(this._ipfs, hash, maxHistory, exclude, this._onLoadProgress.bind(this))
+    const fetchLog = (hash) => Log.fromEntry(this._ipfs, hash, maxHistory, exclude, this._onSyncProgress.bind(this))
 
     return Promise.all(tails.map(fetchLog))
       .then((logs) => {
         const len = this._oplog.items.length
         const prevTails = this._oplog.tails.filter(e => e.next.length > 0)
+          .sort((a, b) => b.clock.time - a.clock.time)
         const prevHeads = this._oplog.heads
 
         this._oplog = Log.joinAll([this._oplog].concat(logs), len + maxHistory, this._oplog.id)
@@ -243,10 +243,13 @@ class Store {
 
         if (max === -1 || currentCount < max) {
           const newTails = this._oplog.tails.filter(e => e.next.length > 0)
+            .sort((a, b) => b.clock.time - a.clock.time)
+
           const uniqueNewTails = newTails.filter((e) => !prevTails.map(a => a.hash).includes(e.hash))
           const newerTails = uniqueNewTails
             .map(e => newTails.map(a => a.hash).indexOf(e) !== 0 ? e : null)
             .filter(e => e !== null)
+            .sort((a, b) => b.clock.time - a.clock.time)
 
           const hasNewerTails = uniqueNewTails.reduce((res, e) => {
             // True if tail doesn't exist (-1) or is at index > 0 (newer)
@@ -255,8 +258,11 @@ class Store {
 
           // hasNewerTails.log("we should fetch more tails?", isNewer, prevTails, newTails)
           if (hasNewerTails) {
-            this.sync(null, newerTails, this.options.maxHistory * 2, false, 32, currentCount)
+            // console.log("has new tails 2", this.options.maxHistory, currentCount, max, newerTails, "--------", newTails)
+            // setImmediate(() => this.sync(null, newerTails, this.options.maxHistory * 2, false, 32, currentCount))
           }
+          console.log("has new tails 2", this.options.maxHistory, currentCount, max, newerTails, "--------", newTails)
+          setImmediate(() => this.sync(null, newTails, this.options.maxHistory * 2, false, 32, currentCount))
         }
       })
       // We should save the heads instead of the hash.
@@ -283,6 +289,7 @@ class Store {
         .then((hash) => logHash = hash)
         .then(() => this._cache.set(this.dbname, logHash))
         .then(() => {
+          console.log("cache.put:", logHash)
           const entry = this._oplog.items[this._oplog.items.length - 1]
           this._lastWrite.push(logHash)
           this._index.updateIndex(this._oplog)
@@ -292,8 +299,12 @@ class Store {
     }
   }
 
-  _onLoadProgress(hash, entry, parent, depth) {
-    this.events.emit('load.progress', this.dbname, depth)
+  _onLoadProgress (hash, entry, progress) {
+    this.events.emit('load.progress', this.dbname, hash, entry, progress)
+  }
+
+  _onSyncProgress (hash, entry, progress) {
+    this.events.emit('sync.progress', this.dbname, hash, entry, progress)
   }
 }
 

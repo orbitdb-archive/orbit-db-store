@@ -9,7 +9,8 @@
   "author": "Haad",
   "license": "MIT",
   "dependencies": {
-    "ipfs-log": "~2.0.0",
-    "orbit-db-cache": "~0.0.6"
+    "ipfs-log": "github:haadcode/ipfs-log#fix/bugfixes",
+    "orbit-db-cache": "~0.0.6",
+    "readable-stream": "^2.3.3"
   }
 }

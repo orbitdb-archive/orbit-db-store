@@ -2,7 +2,7 @@
 
 [![npm version](https://badge.fury.io/js/orbit-db-store.svg)](https://badge.fury.io/js/orbit-db-store)
 
-Base class for [orbit-db](https://github.com/haadcode/orbit-db) data stores.
+Base class for [orbit-db](https://github.com/haadcode/orbit-db) data stores. You generally don't need to use this module if you want to use `orbit-db`. This module contains shared methods between all data stores in `orbit-db` and can be used as a base class for a new data model.
 
 ### Used in
 - [orbit-db-kvstore](https://github.com/haadcode/orbit-db-kvstore)
@@ -19,36 +19,13 @@ Base class for [orbit-db](https://github.com/haadcode/orbit-db) data stores.
 
   Store has an `events` ([EventEmitter](https://nodejs.org/api/events.html)) object that emits events that describe what's happening in the database.
 
-  - `data` - (dbname, event)
-    
-    Emitted after an entry was added to the database
-
-    ```javascript
-    db.events.on('data', (dbname, event) => ... )
-    ```
-
-  - `sync` - (dbname)
-
-    Emitted before starting a database sync with a peer.
-
-    ```javascript
-    db.events.on('sync', (dbname) => ... )
-    ```
-
   - `load` - (dbname, hash)
 
     Emitted before loading the database history. *hash* is the hash from which the history is loaded from.
 
     ```javascript
-    db.events.on('load', (dbname, hash) => ... )
-    ```
-
-  - `history` - (dbname, entries)
-
-    Emitted after loading the database history. *entries* is an Array of entries that were loaded.
-
-    ```javascript
-    db.events.on('history', (dbname, entries) => ... )
+    db.events.on('load', (id, hash) => ... )
+    db.load()
     ```
 
   - `ready` - (dbname)
@@ -56,34 +33,90 @@ Base class for [orbit-db](https://github.com/haadcode/orbit-db) data stores.
     Emitted after fully loading the database history.
 
     ```javascript
-    db.events.on('ready', (dbname) => ... )
+    db.events.on('ready', (id) => ... )
+    db.load()
     ```
 
-  - `write` - (dbname, hash)
+  - `progress.load` - (id, hash, entry, progress, total)
 
-    Emitted after an entry was added locally to the database. *hash* is the IPFS hash of the latest state of the database.
+    Emitted for each entry during load.
+
+    *Progress* is the current load count. *Total* is the maximum load count (ie. length of the full database). These are useful eg. for displaying a load progress percentage.
 
     ```javascript
-    db.events.on('write', (dbname, hash) => ... )
+    db.events.on('load', (id, hash, entry, progress, total) => ... )
+    db.load()
+    ```
+
+  - `replicated` - (dbname)
+
+    Emitted after the database was synced with an update from a peer database.
+
+    ```javascript
+    db.events.on('replicated', (id) => ... )
+    ```
+
+  - `write` - (id, hash, entry)
+
+    Emitted after an entry was added locally to the database. *hash* is the IPFS hash of the latest state of the database. *entry* is the Entry that was added.
+
+    ```javascript
+    db.events.on('write', (id, hash, entry) => ... )
+    ```
+
+  - `close` - (id)
+    
+    Emitted after the database was closed.
+
+    ```javascript
+    db.events.on('close', (id) => ... )
+    db.close()
     ```
 
 ### API
-#### Public methods
-##### `use()` 
-Initialize the store by creating an operations log and loading the latest know local state of the log. Must be called before the store can be used. Emits `load` before init and `ready` after init. Returns a *Promise*.
 
-##### `sync(hash)`
-Merge the local store with another store. Takes an IPFS `hash` as an argument from which the other store is loaded from. Emits `sync` before loading the other store and `updated` after the merge **IF** new items were added to the store. Returns a *Promise*.
+#### Public methods
+
+##### `load()`
+
+Load the database using locally persisted state.
+
+##### `saveSnapshot()`
+
+Save the current state of the database locally. Returns a *Promise* that resolves to a IPFS Multihash as a Base58 encoded string. The the database can be loaded using this hash.
+
+##### `loadFromSnapshot(hash, onProgressCallback)`
+
+Load the state of the database from a snapshot. *hash* is the IPFS Multihash of the snapshot data. Returns a *Promise* that resolves when the database has been loaded.
 
 ##### `close()`
+
 Uninitialize the store. Emits `close` after the store has been uninitialized.
 
-##### `delete()`
+##### `drop()`
+
+Remove the database locally. This doesn't remove or delete the database from peers who have replicated the database.
+
+##### `sync(heads)`
+
+Sync this database with entries from *heads* where *heads* is an array of ipfs-log Entries. Usually, you don't need to call this method manually as OrbitDB takes care of this for you.
+
+#### Properties
+
+##### `type`
+
 Remove all items from the local store. This doesn't remove or delete any entries in the distributed operations log.
 
+```javascript
+console.lo(db.type) // "eventlog"
+```
+
 #### Private methods
+
 ##### `_addOperation(data)`
+
 Add an entry to the store. Takes `data` as a parameter which can be of any type.
+
 ```javascript
 this._addOperation({
   op: 'PUT',

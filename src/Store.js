@@ -175,13 +175,12 @@ class Store {
       .then(() => this._loader.load(heads))
   }
 
-  async loadMoreFrom (amount, entries) {
+  loadMoreFrom (amount, entries) {
     this._loader.load(entries)
   }
 
-  async saveSnapshot() {
+  saveSnapshot() {
     const unfinished = Object.keys(this._loader._fetching).map(e => this._loader._fetching[e]).concat(this._loader._queue.map(e => e))
-    await this._cache.set(this.path + '.queue', unfinished)
 
     let s = this._oplog.toSnapshot()
     let header = new Buffer(JSON.stringify({
@@ -210,7 +209,8 @@ class Store {
       content: rs
     }
 
-    return this._ipfs.files.add(stream)
+    return this._cache.set(this.path + '.queue', unfinished)
+      .then(() => this._ipfs.files.add(stream))
       .then((snapshot) => {
         return this._cache.set(this.path + '.snapshot', snapshot[snapshot.length - 1])
           .then(() => this._cache.set(this.path + '.type', this.type))
@@ -220,16 +220,16 @@ class Store {
       })
   }
 
-  async loadFromSnapshot (hash, onProgressCallback) {
+  loadFromSnapshot (hash, onProgressCallback) {
     this.events.emit('load', this.path)
     return this._cache.load()
-      .then(async () => {
-        const queue = await this._cache.get(this.path + '.queue')
-        const lastMax = await this._cache.get(this.path + '.max')
+      .then(() => this._cache.get(this.path + '.max'))
+      .then(lastMax => {
         this._replicationInfo.max = lastMax || 0
         this.events.emit('progress.load', this.path, null, null, 0, this._replicationInfo.max)
-        this._loader.load(queue || [])
       })
+      .then(() => this._cache.get(this.path + '.queue'))
+      .then(queue => this._loader.load(queue || []))
       .then(() => this._cache.get(this.path + '.snapshot'))
       .then((snapshot) => {
         if (snapshot) {
@@ -368,10 +368,6 @@ class Store {
   _onLoadProgress (hash, entry, progress, total) {
     this.events.emit('load.progress', this.path, hash, entry, progress, total)
     this.events.emit('progress.load', this.path, hash, entry, progress, total)
-  }
-
-  _onSyncProgress (hash, entry, progress) {
-    this.events.emit('sync.progress', this.path, hash, entry, progress)
   }
 }
 

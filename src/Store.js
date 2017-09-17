@@ -1,52 +1,137 @@
 'use strict'
 
+const path = require('path')
 const EventEmitter = require('events').EventEmitter
+const Readable = require('readable-stream')
 const Log = require('ipfs-log')
-const Entry = require('ipfs-log/src/entry')
-const EntrySet = require('ipfs-log/src/entry-set')
 const Cache = require('orbit-db-cache')
 const Index = require('./Index')
+const Loader = require('./Loader')
+const Replicator = require('./Replicator')
+const parseAddress = require('./parse-address')
 
 const DefaultOptions = {
   Index: Index,
-  maxHistory: 256,
-  cachePath: './orbit-db'
+  maxHistory: -1,
+  path: './orbitdb',
+  replicate: true,
 }
 
 class Store {
   constructor(ipfs, id, dbname, options) {
-    this.id = id
-    this.dbname = dbname || ''
-    this.events = new EventEmitter()
-
     let opts = Object.assign({}, DefaultOptions)
     Object.assign(opts, options)
 
     this.options = opts
+
+    this.id = id
+    this.dbname = dbname || ''
+    this.path = parseAddress(this.dbname, this.id)
+
     this._ipfs = ipfs
+    this._oplog = new Log(this._ipfs, this.id)
     this._index = new this.options.Index(this.id)
-    this._oplog = Log.create(this.id)
-    this._lastWrite = []
+    this._cache = options && options.cache ? options.cache : new Cache(this.options.path, this.dbname)
+    this.events = new EventEmitter()
 
-    this._cache = new Cache(this.options.cachePath, this.dbname)
-    this.syncing = false
-    this.syncQueue = []
-    setInterval(() => this._processQ(), 16)
+    this._type = 'store'
 
-    this.syncedOnce = false
+    this._replicationInfo = {
+      progress: 0,
+      max: 0,
+      have: {}
+    }
+
+    this._stats = {
+      snapshot: {
+        bytesLoaded: -1,
+      },
+      syncRequestsReceieved: 0,
+    }
+
+    try {
+      this._loader = new Loader(this)
+      this._loader.on('load.added', (entry) => {
+        // Update the latest entry state (latest is the entry with largest clock time)
+        this._replicationInfo.max = Math.max.apply(null, [this._replicationInfo.max, this._oplog.length, entry.clock ? entry.clock.time : 0])
+        this.events.emit('replicate', this.path)
+      })
+      this._loader.on('load.start', (entry, have) => {
+        // Update the latest entry state (latest is the entry with largest clock time)
+        this._replicationInfo.max = Math.max.apply(null, [this._replicationInfo.max, this._oplog.length, entry.clock ? entry.clock.time : 0])
+      })
+      this._loader.on('load.progress', (id, hash, entry, progress, have) => {
+        this._replicationInfo.progress = Math.max(this._replicationInfo.progress, Math.min(this._oplog.length + progress, this._replicationInfo.progress))
+        this.events.emit('replicate.progress', this.path, hash, entry, progress, have)
+      })
+      this._loader.on('load.end', (log, have) => {
+        this._replicationInfo.have = Object.assign({}, this._replicationInfo.have, have)
+        this._oplog.join(log, -1, this._oplog.id)
+        this._replicator.replicate(this._oplog)
+        this._index.updateIndex(this._oplog)
+      })
+      this._loader.on('load.complete', (have) => {
+        this._replicationInfo.progress = Math.min(this._oplog.length, Math.max(this._replicationInfo.progress, this._oplog.length))
+        this._replicationInfo.max = Math.max(this._replicationInfo.max, this._oplog.length)
+        this._replicationInfo.have = Object.assign({}, this._replicationInfo.have, have)
+        this.events.emit('replicated', this.path)
+        this.events.emit('synced', this.path) // for API backwards compatibility (ish)
+      })
+
+      this._replicator = new Replicator(this._loader)
+      this._replicator.replicate(this._oplog)
+
+      if (this.options.replicate) {
+        this._replicator.start()
+      }
+    } catch (e) {
+      console.error("Store Error:", e)
+    }
+  }
+
+  get all () {
+    return Array.isArray(this._index._index) 
+      ? this._index._index 
+      : Object.keys(this._index._index).map(e => this._index._index[e])
+  }
+
+  get type () {
+    return this._type
+  }
+
+  close () {
+    this._loader.stop()
+    this._replicator.stop()
+    this.events.emit('close', this.path)
+  }
+
+  drop () {
+    return this._cache.set(this.path, null)
+      .then(() => this._cache.set(this.path + '.snapshot', null))
+      .then(() => this._cache.set(this.path + '.localhead', null))
+      .then(() => this._cache.set(this.path + '.remotehead', null))
+      .then(() => this._cache.set(this.path + '.type', null))
+      .then(() => {
+        this._index = new this.options.Index(this.id)
+        this._oplog = new Log(this._ipfs, this.id)
+        this._cache = new Cache(this.options.path, this.dbname)
+        this.syncing = false
+        this.syncQueue = []
+      })
   }
 
   load(amount) {
     let lastHash
     return this._cache.load()
-      .then(() => this._cache.get(this.dbname))
+      .then(() => this._cache.get(this.path + '.localhead'))
       .then((hash) => {
         if (hash) {
           lastHash = hash
-          this.events.emit('sync', this.dbname)
-          return Log.fromMultihash(this._ipfs, hash, amount || this.options.maxHistory)
+          this.events.emit('load', this.path)
+          amount = amount ? amount : this.options.maxHistory
+          return Log.fromMultihash(this._ipfs, hash, amount, [], this._onLoadProgress.bind(this))
             .then((log) => {
-              this._oplog = Log.join(this._oplog, log, -1, this._oplog.id)
+              this._oplog.join(log, -1, this._oplog.id)
               this._index.updateIndex(this._oplog)
               return this._oplog.heads
             })
@@ -54,246 +139,239 @@ class Store {
           return Promise.resolve()
         }
       })
-      .then(() => {
-        if (this._oplog.length > 0) {
-          return Log.toMultihash(this._ipfs, this._oplog)
-            .then((hash) => this._cache.set(this.dbname, hash))
-        }
-      })
-      .then((heads) => this.events.emit('ready', this.dbname))
+      .then((heads) => this.events.emit('ready', this.path, heads))
   }
 
-  loadMore(amount) {
-    const prevLen = this._oplog.items.length
-    this.events.emit('sync', this.dbname)
-    // console.log("expand:", amount)
-    return Log.expand(this._ipfs, this._oplog, amount)
-      .then((log) => {
-        const newCount = log.items.length - prevLen
-        // console.log("expanded to:", log.items.length)
-        this._oplog = log
-        this._index.updateIndex(this._oplog)
-        this.events.emit('synced', this.dbname)
-        return newCount
-      })
-  }
-
-  loadMoreFrom(amount, entries) {
-    // TODO: need to put this via the sync queue
-
-    // console.log("Load more from:", amount, entries)
-    if (entries && !this.loadingMore) {
-      this.loadingMore = true
-      this.events.emit('sync', this.dbname)
-
-      // TODO: move to LogUtils
-      const allTails = new EntrySet(this._oplog.tails)//EntryCollection.findTails(this._oplog.items)
-      const tails = allTails.intersection(new EntrySet(entries.reverse())) // Why do we need to reverse?
-
-      if (allTails.keys.includes("QmdUMFtFdZTiaSmuomvB3QzrwpGakhqzvoJgmekHLZs2s6"))
-        debugger
-
-      // console.log("tails:", tails)
-      // console.log(tails.map(e => e.clock.time + ' ' + JSON.parse(e.payload.value).Post.content).join('\n'))
-      return Log.expandFrom(this._ipfs, this._oplog, tails, amount)
-        .then((log) => {
-          this._oplog = log
-          this._index.updateIndex(this._oplog)
-          this.loadingMore = false
-          this.events.emit('synced', this.dbname)
-        })
-        .catch(e => console.error(e))
-    }
-  }
-
+  // TODO: refactor the signature to:
+  // sync(heads) {
   sync(heads, tails, length, prioritize = true, max = -1, count = 0) {
-    if (prioritize)
-      this.syncQueue.splice(0, 0, { heads: heads, tails: tails, length: length, max: max, count: count })
-    else
-      this.syncQueue.push({ heads: heads, tails: tails, length: length, max: max, count: count })
-  }
+    this._stats.syncRequestsReceieved += 1
 
-  _processQ() {
-    if (this.syncQueue && this.syncQueue.length > 0 && !this.syncing) {
-      this.syncing = true
-      const task = this.syncQueue.shift()
-      if (task.heads) {
-        this._syncFromHeads(task.heads, task.length, task.max, task.count)
-          .then(() => this.syncing = false)
-          .catch((e) => this.events.emit('error', e))
-      } else if (task.tails) {
-        this._syncFromTails(task.tails, task.length, task.max, task.count)
-          .then(() => this.syncing = false)
-          .catch((e) => this.events.emit('error', e))
-      }
-    }
-  }
-
-  _syncFromHeads(heads, maxHistory, max, currentCount) {
-    if (!heads)
-      return Promise.resolve()
-
-    // TODO: doesn't need to return the log hash, that's already cached here
-    const exclude = this._oplog.items.map((e) => e.hash)
-
-    heads = heads.filter(e => e !== undefined && e !== null && Entry.isEntry(e))
-
-    // If we have one of the heads, return
-    // FIX: need to filter out the heads instead of returning
-    if (heads.length === 0 || exclude.find((e) => heads.map((a) => a.hash).indexOf(e) > -1))
-      return Promise.resolve()
-
-    this.events.emit('sync', this.dbname)
+    // To simulate network latency, uncomment this line
+    // and comment out the rest of the function
+    // That way the object (received as head message from pubsub)
+    // doesn't get written to IPFS and so when the Loader is fetching
+    // the log, it'll fetch it from the network instead from the disk.
+    // return this._loader.load(heads)
 
     const saveToIpfs = (head) => {
-      const e = Object.assign({}, head)
-      e.hash = null
-      return this._ipfs.object.put(new Buffer(JSON.stringify(e)))
+      const logEntry = Object.assign({}, head)
+      logEntry.hash = null
+      return this._ipfs.object.put(new Buffer(JSON.stringify(logEntry)))
         .then((dagObj) => dagObj.toJSON().multihash)
+        .then(hash => {
+          // We need to make sure that the head message's hash actually
+          // matches the hash given by IPFS in order to verify that the
+          // message contents are authentic
+          if (hash !== head.hash)
+            console.warn('"WARNING! Head hash didn\'t match the contents')
+
+          return hash
+        })
+        .then((hash) => this._cache.set(this.path + '.remotehead', hash))
     }
 
-    maxHistory = maxHistory || this.options.maxHistory
-    currentCount = currentCount || 0
-    max = max ||this.options.maxHistory
-
-    // console.log("SYNC FROM", maxHistory, heads)
     return Promise.all(heads.map(saveToIpfs))
-      .then((hashes) => {
-        return Log.fromEntry(this._ipfs, heads, maxHistory, exclude, this._onLoadProgress.bind(this))
-      })
-      .then((log) => {
-        const len = this._oplog.items.length
-        if (log.items.length > 0) {
-          const prevTails = this._oplog.tails.filter(e => e.next.length > 0)
-          const prevHeads = this._oplog.heads
-
-          this._oplog = Log.join(this._oplog, log, -1, this._oplog.id)
-          this._index.updateIndex(this._oplog)
-
-          const newItemsCount = this._oplog.items.length - len
-          // console.log("Synced:", newItemsCount)
-          currentCount += newItemsCount
-
-          if (this.options.syncHistory && (max === -1 || currentCount < max)) {
-            const newTails = this._oplog.tails.filter(e => e.next.length > 0)
-            const uniqueNewTails = newTails.filter((e) => !prevTails.map(a => a.hash).includes(e.hash))
-            const newerTails = uniqueNewTails
-              .map(e => newTails.map(a => a.hash).indexOf(e) !== 0 ? e : null)
-              .filter(e => e !== null)
-
-            const hasNewerTails = uniqueNewTails.reduce((res, e) => {
-              // True if tail doesn't exist (-1) or is at index > 0 (newer)
-              return newTails.map(a => a.hash).indexOf(e) !== 0
-            }, false)
-
-            // console.log("we should fetch more?", isNewer, newer.length, newer, prevTails, newTails)
-            if (hasNewerTails) {
-              this.sync(null, [newTails[newTails.length - 1]], this.options.maxHistory * 2, false, 32, currentCount)
-              return
-            }
-
-            const newHeads = this._oplog.heads
-            const shouldLoadFromHeads = prevHeads.length !== newHeads.length // If the length of the heads is different
-              || newHeads.filter((e, idx) => e.hash !== prevHeads[idx].hash).length > 0 // Or if the heads are different than before merge
-            if (shouldLoadFromHeads && newItemsCount > 1) {
-              this.sync(newHeads, null, this.options.maxHistory * 2, false, 32, currentCount)
-            }
-          }
-        }
-      })
-      // We should save the heads instead of the hash.
-      .then(() => Log.toMultihash(this._ipfs, this._oplog))
-      .then((hash) => {
-        return this._cache.set(this.dbname, hash)
-          .then(() => {
-            this.events.emit('synced', this.dbname)
-            return hash
-          })
-      })
-      .catch((e) => this.events.emit('error', e))
+      .then(() => this._loader.load(heads))
   }
 
-  _syncFromTails(tails, maxHistory, max, currentCount) {
-    if (!tails)
-      return Promise.resolve()
-
-    maxHistory = maxHistory || this.options.maxHistory
-    currentCount = currentCount || 0
-    max = max ||this.options.maxHistory
-
-    const exclude = this._oplog.items.map((e) => e.hash)
-
-    // console.log("SYNC FROM TAILS", maxHistory, tails)
-    this.events.emit('sync', this.dbname)
-
-    const fetchLog = (hash) => Log.fromEntry(this._ipfs, hash, maxHistory, exclude, this._onLoadProgress.bind(this))
-
-    return Promise.all(tails.map(fetchLog))
-      .then((logs) => {
-        const len = this._oplog.items.length
-        const prevTails = this._oplog.tails.filter(e => e.next.length > 0)
-        const prevHeads = this._oplog.heads
-
-        this._oplog = Log.joinAll([this._oplog].concat(logs), len + maxHistory, this._oplog.id)
-        this._index.updateIndex(this._oplog)
-
-        const newItemsCount = this._oplog.items.length - len
-        // console.log("Synced from tails:", newItemsCount)
-        currentCount += newItemsCount
-
-        if (max === -1 || currentCount < max) {
-          const newTails = this._oplog.tails.filter(e => e.next.length > 0)
-          const uniqueNewTails = newTails.filter((e) => !prevTails.map(a => a.hash).includes(e.hash))
-          const newerTails = uniqueNewTails
-            .map(e => newTails.map(a => a.hash).indexOf(e) !== 0 ? e : null)
-            .filter(e => e !== null)
-
-          const hasNewerTails = uniqueNewTails.reduce((res, e) => {
-            // True if tail doesn't exist (-1) or is at index > 0 (newer)
-            return newTails.map(a => a.hash).indexOf(e) !== 0
-          }, false)
-
-          // hasNewerTails.log("we should fetch more tails?", isNewer, prevTails, newTails)
-          if (hasNewerTails) {
-            this.sync(null, newerTails, this.options.maxHistory * 2, false, 32, currentCount)
-          }
-        }
-      })
-      // We should save the heads instead of the hash.
-      .then(() => Log.toMultihash(this._ipfs, this._oplog))
-      .then((hash) => {
-        return this._cache.set(this.dbname, hash)
-          .then(() => {
-            this.events.emit('synced', this.dbname)
-            return hash
-          })
-      })
-      .catch((e) => this.events.emit('error', e))
+  async loadMoreFrom (amount, entries) {
+    this._loader.load(entries)
   }
 
-  _addOperation(data) {
+  async saveSnapshot() {
+    const unfinished = Object.keys(this._loader._fetching).map(e => this._loader._fetching[e]).concat(this._loader._queue.map(e => e))
+    await this._cache.set(this.path + '.queue', unfinished)
+
+    let s = this._oplog.toSnapshot()
+    let header = new Buffer(JSON.stringify({
+      id: s.id,
+      heads: s.heads,
+      size: s.values.length,
+      type: this.type,
+    }))
+    const rs = new Readable()
+    let size = new Uint16Array([header.length])
+    let bytes = new Buffer(size.buffer)
+    rs.push(bytes)
+    rs.push(header)
+
+    s.values.forEach((val) => {
+      let str = new Buffer(JSON.stringify(val))
+      let size = new Uint16Array([str.length])
+      rs.push(new Buffer(size.buffer))
+      rs.push(str)
+    })
+
+    rs.push(null)
+
+    const stream = {
+      path: this.path,
+      content: rs
+    }
+
+    return this._ipfs.files.add(stream)
+      .then((snapshot) => {
+        return this._cache.set(this.path + '.snapshot', snapshot[snapshot.length - 1])
+          .then(() => this._cache.set(this.path + '.type', this.type))
+          .then(() => this._cache.set(this.path + '.max', this._replicationInfo.max))
+          .then(() => this._cache.set(this.path, this.id))
+          .then(() => snapshot)
+      })
+  }
+
+  async loadFromSnapshot (hash, onProgressCallback) {
+    this.events.emit('load', this.path)
+    return this._cache.load()
+      .then(async () => {
+        const queue = await this._cache.get(this.path + '.queue')
+        const lastMax = await this._cache.get(this.path + '.max')
+        this._replicationInfo.max = lastMax || 0
+        this.events.emit('progress.load', this.path, null, null, 0, this._replicationInfo.max)
+        this._loader.load(queue || [])
+      })
+      .then(() => this._cache.get(this.path + '.snapshot'))
+      .then((snapshot) => {
+        if (snapshot) {
+          return this._ipfs.files.cat(snapshot.hash)
+            .then((res) => {
+              return new Promise((resolve, reject) => {
+                let buf = new Buffer(0)
+                let q = []
+
+                const bufferData = (d) => {
+                  this._byteSize += d.length
+                  if (q.length < 200) {
+                    q.push(d)
+                  } else {
+                    const a = Buffer.concat(q)
+                    buf = Buffer.concat([buf, a])
+                    q = []
+                  }
+                }
+
+                const done = () => {
+                  if (q.length > 0) {
+                    const a = Buffer.concat(q)
+                    buf = Buffer.concat([buf, a])
+                  }
+
+                  function toArrayBuffer(buf) {
+                    var ab = new ArrayBuffer(buf.length)
+                    var view = new Uint8Array(ab)
+                    for (var i = 0; i < buf.length; ++i) {
+                        view[i] = buf[i]
+                    }
+                    return ab
+                  }
+
+                  const headerSize = parseInt(new Uint16Array(toArrayBuffer(buf.slice(0, 2))))
+                  const header = JSON.parse(buf.slice(2, headerSize + 2))
+                  this.events.emit('progress.load', this.path, null, null, 0, this._replicationInfo.max)
+
+                  let values = []
+                  let a = 2 + headerSize
+                  while(a < buf.length) {
+                    const s = parseInt(new Uint16Array(toArrayBuffer(buf.slice(a, a + 2))))
+                    // console.log("size: ", s)
+                    a += 2
+                    const data = buf.slice(a, a + s)
+                    try {
+                      const d = JSON.parse(data)
+                      values.push(d)
+                    } catch (e) {
+                    }
+                    a += s
+                  }
+
+                  this._type = header.type
+                  this._replicationInfo.max = Math.max(this._replicationInfo.max, values.reduce((res, val) => Math.max(res, val.clock.time), 0))
+                  this._replicationInfo.progress = values.length
+                  resolve({ values: values, id: header.id, heads: header.heads, type: header.type })
+                }
+                res.on('data', bufferData)
+                res.on('end', done)
+              })
+            })
+            .then((res) => {
+              const onProgress = (dbname, hash, entry, count, total) => {
+                const max = Math.max(total || 0, this._replicationInfo.max)
+                this._onLoadProgress(dbname, hash, entry, max, max)
+              }
+
+              return Log.fromJSON(this._ipfs, res, this.options.maxHistory, onProgress)
+                .then((log) => {
+                  this._oplog.join(log, -1, this._oplog.id)
+                  this._oplog.values.forEach(e => this._replicationInfo.have[e.clock.time] = true)
+                  this._replicationInfo.max = Math.max(this._replicationInfo.max, this._oplog.length)
+                  this._replicator.replicate(this._oplog)
+                  this._index.updateIndex(this._oplog)
+                  return this._oplog.heads
+                })
+            })
+        }
+      })
+      .then((heads) => this.events.emit('ready', this.path, heads))
+      .then(() => {
+        this._replicationInfo.max = Math.max(this._replicationInfo.max, this._oplog.values.reduce((res, val) => Math.max(res, val.clock.time), 0))
+        this.events.emit('replicated', this.path)
+        this.events.emit('synced', this.path) // for API backwards compatibility (ish)
+      })
+      .then(() => this)
+  }
+
+  _addOperation(data, batchOperation, lastOperation, onProgressCallback) {
     let logHash
     if(this._oplog) {
-      return Log.append(this._ipfs, this._oplog, data)
-        .then((res) => {
-          this._oplog = res
-          return
-        })
-        .then(() => Log.toMultihash(this._ipfs, this._oplog))
+      return this._oplog.append(data)
+        .then(() => this._oplog.toMultihash())
         .then((hash) => logHash = hash)
-        .then(() => this._cache.set(this.dbname, logHash))
         .then(() => {
-          const entry = this._oplog.items[this._oplog.items.length - 1]
-          this._lastWrite.push(logHash)
+          this._cache.set(this.path + '.localhead', logHash)
+        })
+        .then(() => {
           this._index.updateIndex(this._oplog)
-          this.events.emit('write', this.dbname, logHash, entry, this._oplog.heads)
+          const entry = this._oplog.values[this._oplog.values.length - 1]
+          this.events.emit('write', this.path, logHash, entry, this._oplog.heads)
+          if (onProgressCallback) onProgressCallback(entry)
           return entry.hash
         })
     }
   }
 
-  _onLoadProgress(hash, entry, parent, depth) {
-    this.events.emit('load.progress', this.dbname, depth)
+  _addOperationBatch(data, batchOperation, lastOperation, onProgressCallback) {
+    let logHash
+    if(this._oplog) {
+      return this._oplog.append(data)
+        .then(() => {
+          if (!batchOperation || lastOperation) {
+            return this._oplog.toMultihash()
+              .then((hash) => {
+                logHash = hash
+                this._cache.set(this.path + '.localhead', logHash)
+                  .then(() => {
+                    this._index.updateIndex(this._oplog)
+                    const entry = this._oplog.values[this._oplog.values.length - 1]
+                    this.events.emit('write', this.path, logHash, entry, this._oplog.heads)
+                  })
+              })
+          }
+        })
+        .then(() => {
+          const entry = this._oplog.values[this._oplog.values.length - 1]
+          if (onProgressCallback) onProgressCallback(entry)
+          return entry.hash
+        })
+    }
+  }
+
+  _onLoadProgress (hash, entry, progress, total) {
+    this.events.emit('load.progress', this.path, hash, entry, progress, total)
+    this.events.emit('progress.load', this.path, hash, entry, progress, total)
+  }
+
+  _onSyncProgress (hash, entry, progress) {
+    this.events.emit('sync.progress', this.path, hash, entry, progress)
   }
 }
 

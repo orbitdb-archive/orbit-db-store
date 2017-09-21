@@ -9,8 +9,8 @@
   "author": "Haad",
   "license": "MIT",
   "dependencies": {
-    "ipfs-log": "~3.0.0",
-    "multihashes": "~0.4.9",
+    "ipfs-log": "~4.0.1",
+    "orbit-db-keystore": "~0.0.2",
     "orbit-db-cache": "~0.0.7",
     "readable-stream": "~2.3.3"
   }

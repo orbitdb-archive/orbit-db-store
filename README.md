@@ -15,64 +15,6 @@ Base class for [orbit-db](https://github.com/orbitdb/orbit-db) data stores. You 
 - Node.js >= 6.0
 - npm >= 3.0
 
-### events
-
-  Store has an `events` ([EventEmitter](https://nodejs.org/api/events.html)) object that emits events that describe what's happening in the database.
-
-  - `load` - (dbname, hash)
-
-    Emitted before loading the database history. *hash* is the hash from which the history is loaded from.
-
-    ```javascript
-    db.events.on('load', (id, hash) => ... )
-    db.load()
-    ```
-
-  - `ready` - (dbname)
-
-    Emitted after fully loading the database history.
-
-    ```javascript
-    db.events.on('ready', (id) => ... )
-    db.load()
-    ```
-
-  - `progress.load` - (id, hash, entry, progress, total)
-
-    Emitted for each entry during load.
-
-    *Progress* is the current load count. *Total* is the maximum load count (ie. length of the full database). These are useful eg. for displaying a load progress percentage.
-
-    ```javascript
-    db.events.on('load', (id, hash, entry, progress, total) => ... )
-    db.load()
-    ```
-
-  - `replicated` - (dbname)
-
-    Emitted after the database was synced with an update from a peer database.
-
-    ```javascript
-    db.events.on('replicated', (id) => ... )
-    ```
-
-  - `write` - (id, hash, entry)
-
-    Emitted after an entry was added locally to the database. *hash* is the IPFS hash of the latest state of the database. *entry* is the Entry that was added.
-
-    ```javascript
-    db.events.on('write', (id, hash, entry) => ... )
-    ```
-
-  - `close` - (id)
-    
-    Emitted after the database was closed.
-
-    ```javascript
-    db.events.on('close', (id) => ... )
-    db.close()
-    ```
-
 ### API
 
 #### Public methods
@@ -103,6 +45,24 @@ Sync this database with entries from *heads* where *heads* is an array of ipfs-l
 
 #### Properties
 
+##### `address`
+
+Get the address of this database. Returns an object `{ root: <manifestHash>, path: <path> }`. Convert to a string with `db.address.toString()`.
+
+```javascript
+console.log(db.address)
+// /orbitdb/Qmd8TmZrWASypEp4Er9tgWP4kCNQnW4ncSnvjvyHQ3EVSU/databaseName
+```
+
+##### `key`
+
+Key pair used with this store to sign and access entries. This key is the peer/node/user key.
+
+```javascript
+console.log(db.key.toPublic('hex'))
+// 042c07044e7ea51a489c02854db5e09f0191690dc59db0afd95328c9db614a2976e088cab7c86d7e48183191258fc59dc699653508ce25bf0369d67f33d5d77839
+```
+
 ##### `type`
 
 Remove all items from the local store. This doesn't remove or delete any entries in the distributed operations log.
@@ -110,6 +70,55 @@ Remove all items from the local store. This doesn't remove or delete any entries
 ```javascript
 console.log(db.type) // "eventlog"
 ```
+
+### Events
+
+  Store has an `events` ([EventEmitter](https://nodejs.org/api/events.html)) object that emits events that describe what's happening in the database.
+
+  - `load` - (dbname, hash)
+
+    Emitted before loading the database history. *hash* is the hash from which the history is loaded from.
+
+    ```javascript
+    db.events.on('load', (id, hash) => ... )
+    db.load()
+    ```
+
+  - `ready` - (dbname)
+
+    Emitted after fully loading the database history.
+
+    ```javascript
+    db.events.on('ready', (id) => ... )
+    db.load()
+    ```
+
+  - `load.progress` - (id, hash, entry, progress, total)
+
+    Emitted for each entry during load.
+
+    *Progress* is the current load count. *Total* is the maximum load count (ie. length of the full database). These are useful eg. for displaying a load progress percentage.
+
+    ```javascript
+    db.events.on('load', (id, hash, entry, progress, total) => ... )
+    db.load()
+    ```
+
+  - `replicated` - (dbname)
+
+    Emitted after the database was synced with an update from a peer database.
+
+    ```javascript
+    db.events.on('replicated', (id) => ... )
+    ```
+
+  - `write` - (id, hash, entry)
+
+    Emitted after an entry was added locally to the database. *hash* is the IPFS hash of the latest state of the database. *entry* is the Entry that was added.
+
+    ```javascript
+    db.events.on('write', (id, hash, entry) => ... )
+    ```
 
 #### Private methods
 

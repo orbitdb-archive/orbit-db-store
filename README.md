@@ -2,14 +2,14 @@
 
 [![npm version](https://badge.fury.io/js/orbit-db-store.svg)](https://badge.fury.io/js/orbit-db-store)
 
-Base class for [orbit-db](https://github.com/haadcode/orbit-db) data stores. You generally don't need to use this module if you want to use `orbit-db`. This module contains shared methods between all data stores in `orbit-db` and can be used as a base class for a new data model.
+Base class for [orbit-db](https://github.com/orbitdb/orbit-db) data stores. You generally don't need to use this module if you want to use `orbit-db`. This module contains shared methods between all data stores in `orbit-db` and can be used as a base class for a new data model.
 
 ### Used in
-- [orbit-db-kvstore](https://github.com/haadcode/orbit-db-kvstore)
-- [orbit-db-eventstore](https://github.com/haadcode/orbit-db-eventstore)
-- [orbit-db-feedstore](https://github.com/haadcode/orbit-db-feedstore)
-- [orbit-db-counterstore](https://github.com/haadcode/orbit-db-counterstore)
-- [orbit-db-docstore](https://github.com/shamb0t/orbit-db-docstore)
+- [orbit-db-kvstore](https://github.com/orbitdb/orbit-db-kvstore)
+- [orbit-db-eventstore](https://github.com/orbitdb/orbit-db-eventstore)
+- [orbit-db-feedstore](https://github.com/orbitdb/orbit-db-feedstore)
+- [orbit-db-counterstore](https://github.com/orbitdb/orbit-db-counterstore)
+- [orbit-db-docstore](https://github.com/orbitdb/orbit-db-docstore)
 
 ### Requirements
 - Node.js >= 6.0
@@ -108,7 +108,7 @@ Sync this database with entries from *heads* where *heads* is an array of ipfs-l
 Remove all items from the local store. This doesn't remove or delete any entries in the distributed operations log.
 
 ```javascript
-console.lo(db.type) // "eventlog"
+console.log(db.type) // "eventlog"
 ```
 
 #### Private methods
@@ -176,7 +176,7 @@ module.exports = KeyValueStore;
 
 ## Contributing
 
-See [orbit-db's contributing guideline](https://github.com/haadcode/orbit-db#contributing).
+See [orbit-db's contributing guideline](https://github.com/orbitdb/orbit-db#contributing).
 
 ## License
 

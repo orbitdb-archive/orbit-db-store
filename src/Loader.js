@@ -24,35 +24,33 @@ class Loader extends EventEmitter {
       if (this._queue.length > 0 && this._tasksRunning < this._concurrency)
         this._processLoop()
     }, 2)
-
-    // // Debug print to output Replicator's status
-    // this._debugTimer = setInterval(() => {
-    //   console.log("[LOADER] tasksRequested:", this._stats.tasksRequested, "tasksProcessed:", this._stats.tasksProcessed, "tasksRunning:", this._tasksRunning, "queued:", this._queue.length, "oplog:", this._store._oplog.length)
-    // }, 5000)
   }
 
   stop () {
     clearInterval(this._timer)
-    clearInterval(this._debugTimer)
   }
 
   /*
     Process new heads.
    */
   load (entries) {
-    this._stats.tasksRequested += 1
-    entries
-      .filter(entry => entry !== null && entry !== undefined)
-      .sort((a, b) => (a.clock ? a.clock.time : 0) - (b.clock ? b.clock.time : 0))
-      .forEach(entry => {
-        if (!this._store._oplog.has(entry.hash || entry)
-          && !this._queue.find((e) => (e.hash || e) === (entry.hash || entry))) {
-          // Put the entries in front of the queue
-          this._queue.splice(0, 0, entry)
-          // this._stats.tasksRequested += 1
-          this.emit('load.added', entry)
-        }
-    })
+    try {
+      this._stats.tasksRequested += 1
+      entries
+        .filter(entry => entry !== null && entry !== undefined)
+        .sort((a, b) => (a.clock ? a.clock.time : 0) - (b.clock ? b.clock.time : 0))
+        .forEach(entry => {
+          if (!this._store._oplog.has(entry.hash || entry)
+            && !this._queue.find((e) => (e.hash || e) === (entry.hash || entry))) {
+            // Put the entries in front of the queue
+            this._queue.splice(0, 0, entry)
+            // this._stats.tasksRequested += 1
+            this.emit('load.added', entry)
+          }
+      })
+    } catch (e) {
+      console.error(e)
+    }
   }
 
   async _processLoop () {
@@ -73,14 +71,19 @@ class Loader extends EventEmitter {
 
         if (task) {
           const hash = task.hash || task
-          const exclude = []//this._store._oplog.values
+          const exclude = this._store._oplog.values
 
           this._have = Object.assign({}, this._have, this._store._replicationInfo.have)
           this.emit('load.start', task, this._have)
-          const log = await Log.fromEntryHash(this._store._ipfs, hash, this._store._oplog.id, batchSize, exclude, this._onSyncProgress.bind(this))
-
+          const log = await Log.fromEntryHash(this._store._ipfs, hash, this._store._oplog.id, batchSize, exclude, this._store.key, this._store.access.write, this._onSyncProgress.bind(this))
+          // console.log("LOADER.log:", log.values)
           this._stats.tasksProcessed += 1
           delete this._fetching[hash]
+
+          log.values.forEach(entry => {
+            this.load([entry.next])
+          })
+
           this.emit('load.end', log, this._have)
         }
       } catch (e) {

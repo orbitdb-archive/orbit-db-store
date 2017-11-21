@@ -3,7 +3,7 @@
 const EventEmitter = require('events').EventEmitter
 
 class Replicator extends EventEmitter {
-  constructor (loader, interval = 700) {
+  constructor (loader, interval = 1000) {
     super()
     this._loader = loader
     this._oplog = null

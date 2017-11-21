@@ -332,7 +332,7 @@ class Store {
     this.sync(localData.queue || [])
 
     if (localData.snapshot) {
-      const res = await this._ipfs.files.cat(localData.snapshot.hash)
+      const res = await this._ipfs.files.catReadableStream(localData.snapshot.hash)
       const loadSnapshotData = () => {
         return new Promise((resolve, reject) => {
           let buf = new Buffer(0)

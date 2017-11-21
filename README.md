@@ -12,8 +12,8 @@ Base class for [orbit-db](https://github.com/orbitdb/orbit-db) data stores. You 
 - [orbit-db-docstore](https://github.com/orbitdb/orbit-db-docstore)
 
 ### Requirements
-- Node.js >= 6.0
-- npm >= 3.0
+
+- Node.js >= 8.0.0
 
 ### API
 

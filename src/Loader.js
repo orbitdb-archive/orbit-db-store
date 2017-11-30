@@ -81,7 +81,8 @@ class Loader extends EventEmitter {
           delete this._fetching[hash]
 
           log.values.forEach(entry => {
-            this.load([entry.next])
+            if (entry.next.length > 0)
+              this.load(entry.next)
           })
 
           this.emit('load.end', log, this._have)

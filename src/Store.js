@@ -3,6 +3,7 @@
 const path = require('path')
 const EventEmitter = require('events').EventEmitter
 const Readable = require('readable-stream')
+const mapSeries = require('p-each-series')
 const Log = require('ipfs-log')
 const Cache = require('orbit-db-cache')
 const Keystore = require('orbit-db-keystore')
@@ -263,7 +264,7 @@ class Store {
         .then(() => head)
     }
 
-    return Promise.all(heads.map(saveToIpfs))
+    return mapSeries(heads, saveToIpfs)
       .then(async (saved) => {
         const address = this.address.toString()
         let localData = Object.assign({}, this._cache.get(address), {

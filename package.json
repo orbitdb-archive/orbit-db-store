@@ -19,6 +19,7 @@
     "ipfs-log": "~4.0.4",
     "orbit-db-keystore": "~0.0.2",
     "orbit-db-cache": "~0.0.7",
+    "p-each-series": "^1.0.0",
     "readable-stream": "~2.3.3"
   }
 }

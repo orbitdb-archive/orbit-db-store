@@ -158,6 +158,7 @@ class Store {
   }
 
   async drop () {
+    await this.close()
     const address = this.address.toString()
     await this._cache.set(address, {})
     this._index = new this.options.Index(this.id)

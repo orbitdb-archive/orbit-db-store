@@ -159,8 +159,7 @@ class Store {
 
   async drop () {
     await this.close()
-    const address = this.address.toString()
-    await this._cache.set(address, {})
+    await this._cache.set(this.address.toString(), {})
     this._index = new this.options.Index(this.id)
     this._oplog = new Log(this._ipfs, this.id, null, null, null, this._key, this.access.write)
     this._cache = this.options && this.options.cache ? this.options.cache : new Cache(this.options.path, this.dbname)
@@ -175,46 +174,28 @@ class Store {
       console.warn("Couldn't load Cache:", e)
     }
 
-    const localData = this._cache.get(this.address.toString()) || localData
+    amount = amount ? amount : this.options.maxHistory
+
+    const localData = this._cache.get(this.address.toString()) || {}
     const localHeads = localData.localHeads || []
     const remoteHeads = localData.remoteHeads || []
+    const heads = localHeads.concat(remoteHeads)
 
-    this._replicationInfo.max = Math.max(this._replicationInfo.max, localHeads.concat(remoteHeads).reduce((res, val) => Math.max(res, val.clock.time), 0))
+    if (heads.length > 0)
+      this.events.emit('load', this.address.toString(), heads)
 
-    if (localHeads || remoteHeads) {
-      this.events.emit('load', this.address.toString())
-      amount = amount ? amount : this.options.maxHistory
-      let log1, log2
-      if (localHeads && localHeads.length > 0) {
-        for (const head of localHeads) {
-          log1 = await Log.fromEntryHash(this._ipfs, head.hash, this._oplog.id, amount, this._oplog.values, this.key, this.access.write, this._onLoadProgress.bind(this))
-          await this._oplog.join(log1, -1, this._oplog.id)
-          const entry = this._oplog.values[this._oplog.length - 1]
-          this._replicationInfo.max = Math.max.apply(null, [this._replicationInfo.max, this._oplog.length, this._oplog.values[this._oplog.length - 1].clock.time, 0])
-          this._replicationInfo.progress = Math.max.apply(null, [this._replicationInfo.progress, this._oplog.length])
-          this._onLoadProgress(entry.hash, entry, this._replicationInfo.progress, this._replicationInfo.max)
-        }
-      }
-      if (remoteHeads && remoteHeads.length > 0) {
-        this._replicationInfo.max = Math.max.apply(null, [this._replicationInfo.max, this._oplog.length, remoteHeads[0].clock.time, 0])
-        for (const head of remoteHeads) {
-          log2 = await Log.fromEntryHash(this._ipfs, head.hash, this._oplog.id, amount, this._oplog.values, this.key, this.access.write, this._onLoadProgress.bind(this))
-          await this._oplog.join(log2, -1, this._oplog.id)
-          const entry = this._oplog.values[this._oplog.length - 1]
-          this._replicationInfo.max = Math.max.apply(null, [this._replicationInfo.max, this._oplog.length, this._oplog.values[this._oplog.length - 1].clock.time, 0])
-          this._replicationInfo.progress = Math.max.apply(null, [this._replicationInfo.progress, this._oplog.length])
-          this._onLoadProgress(entry.hash, entry, this._replicationInfo.progress, this._replicationInfo.max)
-        }
-      }
-      // Emit the last progress event
-      const entry = this._oplog.values[this._oplog.length - 1]
-      if (entry) {
-        this._onLoadProgress(entry.hash, entry, this._replicationInfo.progress, this._replicationInfo.max)        
-      }
-      // Update the index
+    await mapSeries(heads, async (head) => {
+      this._replicationInfo.max = Math.max(this._replicationInfo.max, head.clock.time)
+      let log = await Log.fromEntryHash(this._ipfs, head.hash, this._oplog.id, amount, this._oplog.values, this.key, this.access.write, this._onLoadProgress.bind(this))
+      await this._oplog.join(log, amount, this._oplog.id)
+      this._replicationInfo.progress = Math.max.apply(null, [this._replicationInfo.progress, this._oplog.length])
+    })
+
+    // Update the index
+    if (heads.length > 0)
       this._index.updateIndex(this._oplog)
-    }
 
+    // Start replicating again
     if (this.options.replicate) {
       this._replicator.replicate(this._oplog)
       this._replicator.start()

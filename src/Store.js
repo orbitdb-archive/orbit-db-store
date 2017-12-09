@@ -5,7 +5,6 @@ const EventEmitter = require('events').EventEmitter
 const Readable = require('readable-stream')
 const mapSeries = require('p-each-series')
 const Log = require('ipfs-log')
-const Cache = require('orbit-db-cache')
 const Keystore = require('orbit-db-keystore')
 const Index = require('./Index')
 const Loader = require('./Loader')
@@ -36,11 +35,17 @@ class Store {
 
     // External dependencies
     this._ipfs = ipfs
-    this._cache = options && options.cache ? options.cache : new Cache(this.options.path, this.dbname)
+    this._cache = options.cache
     this._index = new this.options.Index(this.id)
-    this._keystore = options && options.keystore ? options.keystore : new Keystore(path.join(this.options.path, this.id, '/keystore'))
-    this._ipfs.keystore = this._keystore // FIX: duck typed interface
-    this._key = this._keystore.getKey(id) || this._keystore.createKey(id)
+
+    this._keystore = options && options.keystore 
+      ? options.keystore 
+      : new Keystore(path.join(this.options.path, this.id, '/keystore'))
+    this._key = options && options.key
+      ? options.key
+      : this._keystore.getKey(id) || this._keystore.createKey(id)
+    // FIX: duck typed interface
+    this._ipfs.keystore = this._keystore 
 
     // Access mapping
     const defaultAccess = { 
@@ -152,14 +157,23 @@ class Store {
     this.events.removeAllListeners('replicated')
     this.events.removeAllListeners('ready')
     this.events.removeAllListeners('write')
+
+    // Close cache
+    await this._cache.close()
+
     // Database is now closed
     this.events.emit('closed', this.address.toString())
     return Promise.resolve()
   }
 
   async drop () {
+    await this._cache.del(this.address.toString() + '/_manifest', null)
+    await this._cache.del(this.address.toString(), null)
+    await this._cache.del('_localHeads', null)
+    await this._cache.del('_remoteHeads', null)
+    await this._cache.del('snapshot', null)
+    await this._cache.del('queue', null)
     await this.close()
-    await this._cache.set(this.address.toString(), {})
     this._index = new this.options.Index(this.id)
     this._oplog = new Log(this._ipfs, this.id, null, null, null, this._key, this.access.write)
     this._cache = this.options && this.options.cache ? this.options.cache : new Cache(this.options.path, this.dbname)
@@ -168,17 +182,10 @@ class Store {
   async load (amount) {
     this._replicator.stop()
 
-    try {
-      await this._cache.load()
-    } catch (e) {
-      console.warn("Couldn't load Cache:", e)
-    }
-
     amount = amount ? amount : this.options.maxHistory
 
-    const localData = this._cache.get(this.address.toString()) || {}
-    const localHeads = localData.localHeads || []
-    const remoteHeads = localData.remoteHeads || []
+    const localHeads = await this._cache.get('_localHeads') || []
+    const remoteHeads = await this._cache.get('_remoteHeads') || []
     const heads = localHeads.concat(remoteHeads)
 
     if (heads.length > 0)
@@ -248,11 +255,7 @@ class Store {
 
     return mapSeries(heads, saveToIpfs)
       .then(async (saved) => {
-        const address = this.address.toString()
-        let localData = Object.assign({}, this._cache.get(address), {
-          remoteHeads: heads,
-        })
-        await this._cache.set(address, localData)
+        await this._cache.set('_remoteHeads', heads)
         return this._loader.load(saved.filter(e => e !== null))
       })
   }
@@ -292,28 +295,23 @@ class Store {
     }
 
     const snapshot = await this._ipfs.files.add(stream)
-    const address = this.address.toString()
-    let localData = Object.assign({}, this._cache.get(address), {
-      snapshot: snapshot[snapshot.length - 1],
-      queue: unfinished,
-      type: this.type,
-      max: this._replicationInfo.max,
-    })
-    await this._cache.set(address, localData)
+
+    await this._cache.set('snapshot', snapshot[snapshot.length - 1])
+    await this._cache.set('queue', unfinished)
+
     return snapshot
   }
 
   async loadFromSnapshot (onProgressCallback) {
     this.events.emit('load', this.address.toString())
-    await this._cache.load()
-    const localData = this._cache.get(this.address.toString())
-    this._replicationInfo.max = Math.max(this._replicationInfo.max, localData.max || 0)
-    // this.events.emit('load.progress', this.address.toString(), null, null, 0, this._replicationInfo.max)
 
-    this.sync(localData.queue || [])
+    const queue = await this._cache.get('queue')
+    this.sync(queue || [])
 
-    if (localData.snapshot) {
-      const res = await this._ipfs.files.catReadableStream(localData.snapshot.hash)
+    const snapshot = await this._cache.get('snapshot')
+
+    if (snapshot) {
+      const res = await this._ipfs.files.catReadableStream(snapshot.hash)
       const loadSnapshotData = () => {
         return new Promise((resolve, reject) => {
           let buf = new Buffer(0)
@@ -404,11 +402,7 @@ class Store {
       this._replicationInfo.max = Math.max(this._replicationInfo.max, entry.clock.time)
       this._replicationInfo.progress++
       const address = this.address.toString()
-      let localData = Object.assign({}, this._cache.get(address), {
-        localHeads: [entry],
-        max: this._replicationInfo.max,
-      })
-      await this._cache.set(address, localData)
+      await this._cache.set('_localHeads', [entry])
       this._index.updateIndex(this._oplog)
       this.events.emit('write', this.address.toString(), entry, this._oplog.heads)
       if (onProgressCallback) onProgressCallback(entry)

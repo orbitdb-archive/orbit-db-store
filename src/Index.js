@@ -48,7 +48,7 @@ class Index {
     @param entries - operations that were added to the log
   */
   updateIndex(oplog, entries) {
-    this._index = oplog.ops
+    this._index = oplog.values
   }
 }
 

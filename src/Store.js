@@ -8,13 +8,18 @@ const Log = require('ipfs-log')
 const Keystore = require('orbit-db-keystore')
 const Index = require('./Index')
 const Loader = require('./Loader')
-const Replicator = require('./Replicator')
+
+const Logger = require('logplease')
+const logger = Logger.create("orbit-db.store", { color: Logger.Colors.Blue })
+Logger.setLogLevel('ERROR')
 
 const DefaultOptions = {
   Index: Index,
   maxHistory: -1,
   path: './orbitdb',
   replicate: true,
+  referenceCount: 64,
+  replicationConcurrency: 128,
 }
 
 class Store {
@@ -60,9 +65,10 @@ class Store {
 
     // Replication progress info
     this._replicationInfo = {
+      buffered: 0,
+      queued: 0,
       progress: 0,
       max: 0,
-      have: {}
     }
 
     // Statistics
@@ -74,48 +80,46 @@ class Store {
     }
 
     try {
-      this._loader = new Loader(this)
+      this._loader = new Loader(this, this.options.replicationConcurrency)
       this._loader.on('load.added', (entry) => {
         // Update the latest entry state (latest is the entry with largest clock time)
+        this._replicationInfo.queued ++
         this._replicationInfo.max = Math.max.apply(null, [this._replicationInfo.max, this._oplog.length, entry.clock ? entry.clock.time : 0])
-        this.events.emit('replicate', this.address.toString())
+        // logger.debug(`<replicate>`)
+        this.events.emit('replicate', this.address.toString(), entry)
       })
-      this._loader.on('load.start', (entry, have) => {
-        // Update the latest entry state (latest is the entry with largest clock time)
-        this._replicationInfo.max = Math.max.apply(null, [this._replicationInfo.max, this._oplog.length, entry.clock ? entry.clock.time : 0])
+      this._loader.on('load.progress', (id, hash, entry, have, bufferedLength) => {
+        // console.log(">>", this._oplog.length, this._replicationInfo.progress, this._replicationInfo.buffered, bufferedLength)
+        if (this._replicationInfo.buffered > bufferedLength) {
+          this._replicationInfo.progress = this._replicationInfo.progress + bufferedLength
+        } else {
+          this._replicationInfo.progress = Math.max.apply(null, [this._oplog.length, this._replicationInfo.progress, this._oplog.length + bufferedLength])
+        }
+        // console.log(">>>", this._replicationInfo.progress)
+        this._replicationInfo.buffered = bufferedLength
+        // logger.debug(`<replicate.progress>`)
+        this.events.emit('replicate.progress', this.address.toString(), hash, entry, this._replicationInfo.progress, have)
       })
-      this._loader.on('load.progress', (id, hash, entry, progress, have) => {
-        this._replicationInfo.progress = Math.max.apply(null, [this._replicationInfo.progress, this._oplog.length])
-        this.events.emit('replicate.progress', this.address.toString(), hash, entry, this._replicationInfo.progress, this._replicationInfo.have)
-      })
-      this._loader.on('load.end', async (log, have) => {
+
+      const onLoadCompleted = async (logs, have) => {
         try {
-          await this._oplog.join(log, -1, this._oplog.id)
-          this._replicator.replicate(this._oplog)
+          for (let log of logs) {
+            await this._oplog.join(log, -1, this._oplog.id)
+          }
+          this._replicationInfo.max = Math.max(this._replicationInfo.max, this._oplog.length)
           this._index.updateIndex(this._oplog)
-          this._calculateReplicationInfo(have)
-          this.events.emit('replicated', this.address.toString())
+          this._replicationInfo.progress = Math.max.apply(null, [this._replicationInfo.progress, this._oplog.length])
+          this._replicationInfo.queued -= logs.length
+          // logger.debug(`<replicated>`)
+          this.events.emit('replicated', this.address.toString(), logs.length)
         } catch (e) {
           console.error(e)
         }
-      })
-
-      this._replicator = new Replicator(this._loader)
-      this._replicator.replicate(this._oplog)
-
-      if (this.options.replicate) {
-        this._replicator.start()
       }
+      this._loader.on('load.end', onLoadCompleted)
     } catch (e) {
       console.error("Store Error:", e)
     }
-  }
-
-  _calculateReplicationInfo (have) {
-    this._replicationInfo.progress = Math.min(this._oplog.length, Math.max(this._replicationInfo.progress, this._oplog.length))
-    this._replicationInfo.max = Math.max(this._replicationInfo.max, this._oplog.length)
-    if (have)
-      this._replicationInfo.have = Object.assign(this._replicationInfo.have, have)
   }
 
   get all () {
@@ -133,14 +137,12 @@ class Store {
   }
 
   async close () {
-    // Stop the replicator
-    this._loader.stop()
-    this._replicator.stop()
     // Reset replication statistics
     this._replicationInfo = {
+      buffered: 0,
+      queued: 0,
       progress: 0,
       max: 0,
-      have: {}
     }
     // Reset database statistics
     this._stats = {
@@ -180,8 +182,6 @@ class Store {
   }
 
   async load (amount) {
-    this._replicator.stop()
-
     amount = amount ? amount : this.options.maxHistory
 
     const localHeads = await this._cache.get('_localHeads') || []
@@ -202,19 +202,15 @@ class Store {
     if (heads.length > 0)
       this._index.updateIndex(this._oplog)
 
-    // Start replicating again
-    if (this.options.replicate) {
-      this._replicator.replicate(this._oplog)
-      this._replicator.start()
-    }
-
     this.events.emit('ready', this.address.toString(), this._oplog.heads)
   }
 
-  // TODO: refactor the signature to:
-  // sync(heads) {
-  sync (heads, tails, length, prioritize = true, max = -1, count = 0) {
+  sync (heads) {
     this._stats.syncRequestsReceieved += 1
+    logger.debug(`Sync request #${this._stats.syncRequestsReceieved} ${heads.length}`)
+
+    if (heads.length === 0)
+      return
 
     // To simulate network latency, uncomment this line
     // and comment out the rest of the function
@@ -256,6 +252,7 @@ class Store {
     return mapSeries(heads, saveToIpfs)
       .then(async (saved) => {
         await this._cache.set('_remoteHeads', heads)
+        logger.debug(`Saved heads ${heads.length} [${saved.map(e => e.hash).join(', ')}]`)
         return this._loader.load(saved.filter(e => e !== null))
       })
   }
@@ -265,13 +262,13 @@ class Store {
   }
 
   async saveSnapshot() {
-    const unfinished = Object.keys(this._loader._fetching).map(e => this._loader._fetching[e]).concat(this._loader._queue.map(e => e))
+    const unfinished = this._loader.getQueue()
 
-    let s = this._oplog.toSnapshot()
+    let snapshotData = this._oplog.toSnapshot()
     let header = new Buffer(JSON.stringify({
-      id: s.id,
-      heads: s.heads,
-      size: s.values.length,
+      id: snapshotData.id,
+      heads: snapshotData.heads,
+      size: snapshotData.values.length,
       type: this.type,
     }))
     const rs = new Readable()
@@ -280,14 +277,15 @@ class Store {
     rs.push(bytes)
     rs.push(header)
 
-    s.values.forEach((val) => {
+    const addToStream = (val) => {
       let str = new Buffer(JSON.stringify(val))
       let size = new Uint16Array([str.length])
       rs.push(new Buffer(size.buffer))
       rs.push(str)
-    })
+    }
 
-    rs.push(null)
+    snapshotData.values.forEach(addToStream)
+    rs.push(null) // tell the stream we're finished
 
     const stream = {
       path: this.address.toString(),
@@ -298,6 +296,8 @@ class Store {
 
     await this._cache.set('snapshot', snapshot[snapshot.length - 1])
     await this._cache.set('queue', unfinished)
+
+    logger.debug(`Saved snapshot: ${snapshot[snapshot.length - 1].hash}, queue length: ${unfinished.length}`)
 
     return snapshot
   }
@@ -319,7 +319,7 @@ class Store {
 
           const bufferData = (d) => {
             this._byteSize += d.length
-            if (q.length < 2000) {
+            if (q.length < 20000) {
               q.push(d)
             } else {
               const a = Buffer.concat(q)
@@ -346,7 +346,13 @@ class Store {
             }
 
             const headerSize = parseInt(new Uint16Array(toArrayBuffer(buf.slice(0, 2))))
-            const header = JSON.parse(buf.slice(2, headerSize + 2))
+            let header
+
+            try {
+              header = JSON.parse(buf.slice(2, headerSize + 2))
+            } catch (e) {
+              //TODO
+            }
 
             let values = []
             let a = 2 + headerSize
@@ -363,9 +369,14 @@ class Store {
               a += s
             }
 
-            this._type = header.type
-            this._replicationInfo.max = Math.max(this._replicationInfo.max, values.reduce((res, val) => Math.max(res, val.clock.time), 0))
-            resolve({ values: values, id: header.id, heads: header.heads, type: header.type })
+            if (header) {
+              this._type = header.type
+              this._replicationInfo.max = Math.max(this._replicationInfo.max, values.reduce((res, val) => Math.max(res, val.clock.time), 0))
+              resolve({ values: values, id: header.id, heads: header.heads, type: header.type })
+            } else {
+              this._replicationInfo.max = 0
+              resolve({ values: values, id: null, heads: null, type: null })
+            }
           }
           res.on('data', bufferData)
           res.on('end', done)
@@ -381,15 +392,15 @@ class Store {
       // Fetch the entries
       // Timeout 1 sec to only load entries that are already fetched (in order to not get stuck at loading)
       const snapshotData = await loadSnapshotData()
-      const log = await Log.fromJSON(this._ipfs, snapshotData, -1, this._key, this.access.write, 1000, onProgress)
-      await this._oplog.join(log, -1, this._oplog.id)
-      this._oplog.values.forEach(e => this._replicationInfo.have[e.clock.time] = true)
-      this._replicationInfo.max = Math.max(this._replicationInfo.max, this._oplog.length)
-      this._replicationInfo.progress = Math.max(this._replicationInfo.progress, this._oplog.length)
-      this._replicator.replicate(this._oplog)
-      this._index.updateIndex(this._oplog)
+      if (snapshotData) {
+        const log = await Log.fromJSON(this._ipfs, snapshotData, -1, this._key, this.access.write, 1000, onProgress)
+        await this._oplog.join(log, -1, this._oplog.id)
+        this._replicationInfo.max = Math.max(this._replicationInfo.max, this._oplog.length)
+        this._replicationInfo.progress = Math.max(this._replicationInfo.progress, this._oplog.length)
+        this._index.updateIndex(this._oplog)
+        this.events.emit('replicated', this.address.toString())
+      }
       this.events.emit('ready', this.address.toString(), this._oplog.heads)
-      this.events.emit('replicated', this.address.toString())
     } else {
       throw new Error(`Snapshot for ${this.address} not found!`)
     }
@@ -398,7 +409,7 @@ class Store {
 
   async _addOperation(data, batchOperation, lastOperation, onProgressCallback) {
     if(this._oplog) {
-      const entry = await this._oplog.append(data)
+      const entry = await this._oplog.append(data, this.options.referenceCount)
       this._replicationInfo.max = Math.max(this._replicationInfo.max, entry.clock.time)
       this._replicationInfo.progress++
       const address = this.address.toString()

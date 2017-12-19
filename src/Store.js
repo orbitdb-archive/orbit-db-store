@@ -97,6 +97,7 @@ class Store {
         }
         // console.log(">>>", this._replicationInfo.progress)
         this._replicationInfo.buffered = bufferedLength
+        this._replicationInfo.max = Math.max.apply(null, [this._replicationInfo.max, this._replicationInfo.progress])
         // logger.debug(`<replicate.progress>`)
         this.events.emit('replicate.progress', this.address.toString(), hash, entry, this._replicationInfo.progress, have)
       })

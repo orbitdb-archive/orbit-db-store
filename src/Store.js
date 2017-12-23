@@ -5,7 +5,6 @@ const EventEmitter = require('events').EventEmitter
 const Readable = require('readable-stream')
 const mapSeries = require('p-each-series')
 const Log = require('ipfs-log')
-const Keystore = require('orbit-db-keystore')
 const Index = require('./Index')
 const Loader = require('./Loader')
 
@@ -43,9 +42,7 @@ class Store {
     this._cache = options.cache
     this._index = new this.options.Index(this.id)
 
-    this._keystore = options && options.keystore 
-      ? options.keystore 
-      : new Keystore(path.join(this.options.path, this.id, '/keystore'))
+    this._keystore = options.keystore 
     this._key = options && options.key
       ? options.key
       : this._keystore.getKey(id) || this._keystore.createKey(id)
@@ -170,16 +167,11 @@ class Store {
   }
 
   async drop () {
-    await this._cache.del(this.address.toString() + '/_manifest', null)
-    await this._cache.del(this.address.toString(), null)
-    await this._cache.del('_localHeads', null)
-    await this._cache.del('_remoteHeads', null)
-    await this._cache.del('snapshot', null)
-    await this._cache.del('queue', null)
     await this.close()
+    await this._cache.destroy()
     this._index = new this.options.Index(this.id)
     this._oplog = new Log(this._ipfs, this.id, null, null, null, this._key, this.access.write)
-    this._cache = this.options && this.options.cache ? this.options.cache : new Cache(this.options.path, this.dbname)
+    this._cache = this.options.cache
   }
 
   async load (amount) {
@@ -197,6 +189,7 @@ class Store {
       let log = await Log.fromEntryHash(this._ipfs, head.hash, this._oplog.id, amount, this._oplog.values, this.key, this.access.write, this._onLoadProgress.bind(this))
       await this._oplog.join(log, amount, this._oplog.id)
       this._replicationInfo.progress = Math.max.apply(null, [this._replicationInfo.progress, this._oplog.length])
+      this._replicationInfo.max = Math.max.apply(null, [this._replicationInfo.max, this._replicationInfo.progress])
     })
 
     // Update the index
@@ -396,7 +389,7 @@ class Store {
       if (snapshotData) {
         const log = await Log.fromJSON(this._ipfs, snapshotData, -1, this._key, this.access.write, 1000, onProgress)
         await this._oplog.join(log, -1, this._oplog.id)
-        this._replicationInfo.max = Math.max(this._replicationInfo.max, this._oplog.length)
+        this._replicationInfo.max = Math.max.apply(null, [this._replicationInfo.max, this._replicationInfo.progress, this._oplog.length])
         this._replicationInfo.progress = Math.max(this._replicationInfo.progress, this._oplog.length)
         this._index.updateIndex(this._oplog)
         this.events.emit('replicated', this.address.toString())

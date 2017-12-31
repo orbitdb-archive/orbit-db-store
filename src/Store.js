@@ -404,8 +404,8 @@ class Store {
   async _addOperation(data, batchOperation, lastOperation, onProgressCallback) {
     if(this._oplog) {
       const entry = await this._oplog.append(data, this.options.referenceCount)
-      this._replicationInfo.max = Math.max(this._replicationInfo.max, entry.clock.time)
       this._replicationInfo.progress++
+      this._replicationInfo.max = Math.max.apply(null, [this._replicationInfo.max, this._replicationInfo.progress, entry.clock.time])
       const address = this.address.toString()
       await this._cache.set('_localHeads', [entry])
       this._index.updateIndex(this._oplog)

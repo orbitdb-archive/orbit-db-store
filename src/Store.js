@@ -49,16 +49,22 @@ class Store {
     // FIX: duck typed interface
     this._ipfs.keystore = this._keystore 
 
+    this.peers = []
     // Access mapping
-    const defaultAccess = { 
-      admin: [this._key.getPublic('hex')], 
-      read: [], // Not used atm, anyone can read
-      write: [this._key.getPublic('hex')] 
-    }
-    this.access = options.accessController || defaultAccess
+    // const defaultAccess = { 
+    //   admin: [this._key.getPublic('hex')], 
+    //   read: [], // Not used atm, anyone can read
+    //   write: [this._key.getPublic('hex')] 
+    // }
+    this.access = options.accessController
+
+    this.access.on('updated', () => {
+      this._oplog._keys = this.access.get('write')
+      logger.debug("Access Update:\n", JSON.stringify(this.access.capabilities, null, 2))
+    })
 
     // Create the operations log
-    this._oplog = new Log(this._ipfs, this.id, null, null, null, this._key, this.access.write)
+    this._oplog = new Log(this._ipfs, this.id, null, null, null, this._key, this.access.get('write'))
 
     // Replication progress info
     this._replicationInfo = {
@@ -158,6 +164,9 @@ class Store {
     this.events.removeAllListeners('ready')
     this.events.removeAllListeners('write')
 
+    // Close access controller
+    await this.access.close()
+
     // Close cache
     await this._cache.close()
 
@@ -170,7 +179,7 @@ class Store {
     await this.close()
     await this._cache.destroy()
     this._index = new this.options.Index(this.id)
-    this._oplog = new Log(this._ipfs, this.id, null, null, null, this._key, this.access.write)
+    this._oplog = new Log(this._ipfs, this.id, null, null, null, this._key, this.access.get('write'))
     this._cache = this.options.cache
   }
 
@@ -186,7 +195,7 @@ class Store {
 
     await mapSeries(heads, async (head) => {
       this._replicationInfo.max = Math.max(this._replicationInfo.max, head.clock.time)
-      let log = await Log.fromEntryHash(this._ipfs, head.hash, this._oplog.id, amount, this._oplog.values, this.key, this.access.write, this._onLoadProgress.bind(this))
+      let log = await Log.fromEntryHash(this._ipfs, head.hash, this._oplog.id, amount, this._oplog.values, this.key, this.access.get('write'), this._onLoadProgress.bind(this))
       await this._oplog.join(log, amount, this._oplog.id)
       this._replicationInfo.progress = Math.max.apply(null, [this._replicationInfo.progress, this._oplog.length])
       this._replicationInfo.max = Math.max.apply(null, [this._replicationInfo.max, this._replicationInfo.progress])
@@ -219,7 +228,7 @@ class Store {
         return Promise.resolve(null)
       }
 
-      if (!this.access.write.includes(head.key) && !this.access.write.includes('*')) {
+      if (!this.access.get('write').includes(head.key) && !this.access.get('write').includes('*')) {
         console.warn("Warning: Given input entry is not allowed in this log and was discarded (no write access).")
         return Promise.resolve(null)
       }
@@ -387,7 +396,7 @@ class Store {
       // Timeout 1 sec to only load entries that are already fetched (in order to not get stuck at loading)
       const snapshotData = await loadSnapshotData()
       if (snapshotData) {
-        const log = await Log.fromJSON(this._ipfs, snapshotData, -1, this._key, this.access.write, 1000, onProgress)
+        const log = await Log.fromJSON(this._ipfs, snapshotData, -1, this._key, this.access.get('write'), 1000, onProgress)
         await this._oplog.join(log, -1, this._oplog.id)
         this._replicationInfo.max = Math.max.apply(null, [this._replicationInfo.max, this._replicationInfo.progress, this._oplog.length])
         this._replicationInfo.progress = Math.max(this._replicationInfo.progress, this._oplog.length)

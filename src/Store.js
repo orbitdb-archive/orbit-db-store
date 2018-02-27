@@ -281,12 +281,7 @@ class Store {
     snapshotData.values.forEach(addToStream)
     rs.push(null) // tell the stream we're finished
 
-    const stream = {
-      path: this.address.toString(),
-      content: rs
-    }
-
-    const snapshot = await this._ipfs.files.add(stream)
+    const snapshot = await this._ipfs.files.add(rs)
 
     await this._cache.set('snapshot', snapshot[snapshot.length - 1])
     await this._cache.set('queue', unfinished)

@@ -5,7 +5,7 @@ const Readable = require('readable-stream')
 const mapSeries = require('p-each-series')
 const Log = require('ipfs-log')
 const Index = require('./Index')
-const Loader = require('./Loader')
+const Replicator = require('./Replicator')
 
 const Logger = require('logplease')
 const logger = Logger.create("orbit-db.store", { color: Logger.Colors.Blue })
@@ -76,15 +76,18 @@ class Store {
     }
 
     try {
-      this._loader = new Loader(this, this.options.replicationConcurrency)
-      this._loader.on('load.added', (entry) => {
+      this._replicator = new Replicator(this, this.options.replicationConcurrency)
+      // For internal backwards compatibility,
+      // to be removed in future releases
+      this._loader = this._replicator
+      this._replicator.on('load.added', (entry) => {
         // Update the latest entry state (latest is the entry with largest clock time)
         this._replicationInfo.queued ++
         this._replicationInfo.max = Math.max.apply(null, [this._replicationInfo.max, this._oplog.length, entry.clock ? entry.clock.time : 0])
         // logger.debug(`<replicate>`)
         this.events.emit('replicate', this.address.toString(), entry)
       })
-      this._loader.on('load.progress', (id, hash, entry, have, bufferedLength) => {
+      this._replicator.on('load.progress', (id, hash, entry, have, bufferedLength) => {
         // console.log(">>", this._oplog.length, this._replicationInfo.progress, this._replicationInfo.buffered, bufferedLength)
         if (this._replicationInfo.buffered > bufferedLength) {
           this._replicationInfo.progress = this._replicationInfo.progress + bufferedLength
@@ -113,7 +116,7 @@ class Store {
           console.error(e)
         }
       }
-      this._loader.on('load.end', onLoadCompleted)
+      this._replicator.on('load.end', onLoadCompleted)
     } catch (e) {
       console.error("Store Error:", e)
     }
@@ -213,9 +216,9 @@ class Store {
     // To simulate network latency, uncomment this line
     // and comment out the rest of the function
     // That way the object (received as head message from pubsub)
-    // doesn't get written to IPFS and so when the Loader is fetching
+    // doesn't get written to IPFS and so when the Replicator is fetching
     // the log, it'll fetch it from the network instead from the disk.
-    // return this._loader.load(heads)
+    // return this._replicator.load(heads)
 
     const saveToIpfs = (head) => {
       if (!head) {
@@ -251,16 +254,16 @@ class Store {
       .then(async (saved) => {
         await this._cache.set('_remoteHeads', heads)
         logger.debug(`Saved heads ${heads.length} [${saved.map(e => e.hash).join(', ')}]`)
-        return this._loader.load(saved.filter(e => e !== null))
+        return this._replicator.load(saved.filter(e => e !== null))
       })
   }
 
   loadMoreFrom (amount, entries) {
-    this._loader.load(entries)
+    this._replicator.load(entries)
   }
 
   async saveSnapshot () {
-    const unfinished = this._loader.getQueue()
+    const unfinished = this._replicator.getQueue()
 
     let snapshotData = this._oplog.toSnapshot()
     let header = new Buffer(JSON.stringify({

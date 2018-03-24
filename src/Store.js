@@ -135,6 +135,9 @@ class Store {
   }
 
   async close () {
+    if (this.options.onClose)
+      await this.options.onClose(this.address.toString())
+
     // Reset replication statistics
     this._replicationInfo = {
       buffered: 0,
@@ -162,6 +165,8 @@ class Store {
     await this._cache.close()
 
     // Database is now closed
+    // TODO: afaik we don't use 'closed' event anymore, 
+    // to be removed in future releases
     this.events.emit('closed', this.address.toString())
     return Promise.resolve()
   }

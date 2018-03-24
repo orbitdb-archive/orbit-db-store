@@ -29,7 +29,7 @@ class Index {
   /*
     @param id - unique identifier of this index, eg. a user id or a hash
   */
-  constructor(id) {
+  constructor (id) {
     this.id = id
     this._index = []
   }
@@ -38,7 +38,7 @@ class Index {
     Returns the state of the datastore, ie. most up-to-date data
     @return - current state
   */
-  get() {
+  get () {
     return this._index
   }
 
@@ -47,7 +47,7 @@ class Index {
     @param oplog - the source operations log that called updateIndex
     @param entries - operations that were added to the log
   */
-  updateIndex(oplog, entries) {
+  updateIndex (oplog, entries) {
     this._index = oplog.values
   }
 }

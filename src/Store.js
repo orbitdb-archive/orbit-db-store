@@ -1,6 +1,5 @@
 'use strict'
 
-const path = require('path')
 const EventEmitter = require('events').EventEmitter
 const Readable = require('readable-stream')
 const mapSeries = require('p-each-series')
@@ -22,7 +21,7 @@ const DefaultOptions = {
 }
 
 class Store {
-  constructor(ipfs, id, address, options) {
+  constructor (ipfs, id, address, options) {
     // Set the options
     let opts = Object.assign({}, DefaultOptions)
     Object.assign(opts, options)
@@ -42,18 +41,18 @@ class Store {
     this._cache = options.cache
     this._index = new this.options.Index(this.id)
 
-    this._keystore = options.keystore 
+    this._keystore = options.keystore
     this._key = options && options.key
       ? options.key
       : this._keystore.getKey(id) || this._keystore.createKey(id)
     // FIX: duck typed interface
-    this._ipfs.keystore = this._keystore 
+    this._ipfs.keystore = this._keystore
 
     // Access mapping
-    const defaultAccess = { 
-      admin: [this._key.getPublic('hex')], 
+    const defaultAccess = {
+      admin: [this._key.getPublic('hex')],
       read: [], // Not used atm, anyone can read
-      write: [this._key.getPublic('hex')] 
+      write: [this._key.getPublic('hex')],
     }
     this.access = options.accessController || defaultAccess
 
@@ -121,8 +120,8 @@ class Store {
   }
 
   get all () {
-    return Array.isArray(this._index._index) 
-      ? this._index._index 
+    return Array.isArray(this._index._index)
+      ? this._index._index
       : Object.keys(this._index._index).map(e => this._index._index[e])
   }
 
@@ -165,7 +164,7 @@ class Store {
     await this._cache.close()
 
     // Database is now closed
-    // TODO: afaik we don't use 'closed' event anymore, 
+    // TODO: afaik we don't use 'closed' event anymore,
     // to be removed in future releases
     this.events.emit('closed', this.address.toString())
     return Promise.resolve()
@@ -180,7 +179,7 @@ class Store {
   }
 
   async load (amount) {
-    amount = amount ? amount : this.options.maxHistory
+    amount = amount || this.options.maxHistory
 
     const localHeads = await this._cache.get('_localHeads') || []
     const remoteHeads = await this._cache.get('_remoteHeads') || []
@@ -260,7 +259,7 @@ class Store {
     this._loader.load(entries)
   }
 
-  async saveSnapshot() {
+  async saveSnapshot () {
     const unfinished = this._loader.getQueue()
 
     let snapshotData = this._oplog.toSnapshot()
@@ -328,18 +327,16 @@ class Store {
           }
 
           const done = () => {
-            // this.events.emit('load.progress', this.address.toString(), null, null, 0, this._replicationInfo.max)
-
             if (q.length > 0) {
               const a = Buffer.concat(q)
               buf = Buffer.concat([buf, a])
             }
 
-            function toArrayBuffer(buf) {
+            function toArrayBuffer (buf) {
               var ab = new ArrayBuffer(buf.length)
               var view = new Uint8Array(ab)
               for (var i = 0; i < buf.length; ++i) {
-                  view[i] = buf[i]
+                view[i] = buf[i]
               }
               return ab
             }
@@ -350,14 +347,13 @@ class Store {
             try {
               header = JSON.parse(buf.slice(2, headerSize + 2))
             } catch (e) {
-              //TODO
+              // TODO
             }
 
             let values = []
             let a = 2 + headerSize
-            while(a < buf.length) {
+            while (a < buf.length) {
               const s = parseInt(new Uint16Array(toArrayBuffer(buf.slice(a, a + 2))))
-              // console.log("size: ", s)
               a += 2
               const data = buf.slice(a, a + s)
               try {
@@ -406,12 +402,11 @@ class Store {
     return this
   }
 
-  async _addOperation(data, batchOperation, lastOperation, onProgressCallback) {
-    if(this._oplog) {
+  async _addOperation (data, batchOperation, lastOperation, onProgressCallback) {
+    if (this._oplog) {
       const entry = await this._oplog.append(data, this.options.referenceCount)
       this._replicationInfo.progress++
       this._replicationInfo.max = Math.max.apply(null, [this._replicationInfo.max, this._replicationInfo.progress, entry.clock.time])
-      const address = this.address.toString()
       await this._cache.set('_localHeads', [entry])
       this._index.updateIndex(this._oplog)
       this.events.emit('write', this.address.toString(), entry, this._oplog.heads)
@@ -420,7 +415,7 @@ class Store {
     }
   }
 
-  _addOperationBatch(data, batchOperation, lastOperation, onProgressCallback) {
+  _addOperationBatch (data, batchOperation, lastOperation, onProgressCallback) {
     throw new Error("Not implemented!")
   }
 

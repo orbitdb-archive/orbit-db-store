@@ -47,7 +47,7 @@ class Index {
     @param oplog - the source operations log that called updateIndex
     @param entries - operations that were added to the log
   */
-  updateIndex (oplog, entries) {
+  async updateIndex (oplog, entries) {
     this._index = oplog.values
   }
 }

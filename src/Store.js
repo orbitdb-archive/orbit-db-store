@@ -102,9 +102,7 @@ class Store {
           }
           this._replicationStatus.queued -= logs.length
           this._replicationStatus.buffered = this._replicator._buffer.length
-          this._recalculateReplicationMax()
-          this._index.updateIndex(this._oplog)
-          this._recalculateReplicationProgress()
+          await this._updateIndex()
           // logger.debug(`<replicated>`)
           this.events.emit('replicated', this.address.toString(), logs.length)
         } catch (e) {
@@ -200,12 +198,11 @@ class Store {
       this._recalculateReplicationMax(head.clock.time)
       let log = await Log.fromEntryHash(this._ipfs, head.hash, this._oplog.id, amount, this._oplog.values, this.key, this.access.write, this._onLoadProgress.bind(this))
       await this._oplog.join(log, amount, this._oplog.id)
-      this._recalculateReplicationProgress()
     })
 
     // Update the index
     if (heads.length > 0)
-      this._index.updateIndex(this._oplog)
+      await this._updateIndex()
 
     this.events.emit('ready', this.address.toString(), this._oplog.heads)
   }
@@ -392,9 +389,7 @@ class Store {
       if (snapshotData) {
         const log = await Log.fromJSON(this._ipfs, snapshotData, -1, this._key, this.access.write, 1000, onProgress)
         await this._oplog.join(log, -1, this._oplog.id)
-        this._recalculateReplicationMax()
-        this._index.updateIndex(this._oplog)
-        this._recalculateReplicationProgress()
+        await this._updateIndex()
         this.events.emit('replicated', this.address.toString())
       }
       this.events.emit('ready', this.address.toString(), this._oplog.heads)
@@ -405,12 +400,18 @@ class Store {
     return this
   }
 
+  async _updateIndex () {
+    this._recalculateReplicationMax()
+    await this._index.updateIndex(this._oplog)
+    this._recalculateReplicationProgress()
+  }
+
   async _addOperation (data, batchOperation, lastOperation, onProgressCallback) {
     if (this._oplog) {
       const entry = await this._oplog.append(data, this.options.referenceCount)
       this._recalculateReplicationStatus(this.replicationStatus.progress + 1, entry.clock.time)
       await this._cache.set('_localHeads', [entry])
-      this._index.updateIndex(this._oplog)
+      await this._updateIndex()
       this.events.emit('write', this.address.toString(), entry, this._oplog.heads)
       if (onProgressCallback) onProgressCallback(entry)
       return entry.hash

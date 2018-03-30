@@ -16,7 +16,7 @@ const uniqueValues = (res, val) => {
 
 const batchSize = 1
 
-class Loader extends EventEmitter {
+class Replicator extends EventEmitter {
   constructor (store, concurrency) {
     super()
     this._store = store
@@ -172,4 +172,4 @@ class Loader extends EventEmitter {
   }
 }
 
-module.exports = Loader
+module.exports = Replicator

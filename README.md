@@ -19,9 +19,9 @@ Base class for [orbit-db](https://github.com/orbitdb/orbit-db) data stores. You 
 
 #### Public methods
 
-##### `load()`
+##### `load(amount)`
 
-Load the database using locally persisted state.
+Load the database using locally persisted state. Can specify how many entries to load with `amount` argument.
 
 ##### `saveSnapshot()`
 
@@ -69,6 +69,15 @@ Remove all items from the local store. This doesn't remove or delete any entries
 
 ```javascript
 console.log(db.type) // "eventlog"
+```
+
+##### `replicationStatus`
+
+Get database replication status information such as total number of entries and loading progress.
+
+```javascript
+console.log(db.replicationStatus)
+// { buffered: 0, queued: 0, progress: 2, max: 5 }
 ```
 
 ### Events

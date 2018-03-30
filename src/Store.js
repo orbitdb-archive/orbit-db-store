@@ -6,6 +6,7 @@ const mapSeries = require('p-each-series')
 const Log = require('ipfs-log')
 const Index = require('./Index')
 const Replicator = require('./Replicator')
+const ReplicationInfo = require('./replication-info')
 
 const Logger = require('logplease')
 const logger = Logger.create("orbit-db.store", { color: Logger.Colors.Blue })
@@ -60,12 +61,7 @@ class Store {
     this._oplog = new Log(this._ipfs, this.id, null, null, null, this._key, this.access.write)
 
     // Replication progress info
-    this._replicationInfo = {
-      buffered: 0,
-      queued: 0,
-      progress: 0,
-      max: 0,
-    }
+    this._replicationStatus = new ReplicationInfo()
 
     // Statistics
     this._stats = {
@@ -82,23 +78,21 @@ class Store {
       this._loader = this._replicator
       this._replicator.on('load.added', (entry) => {
         // Update the latest entry state (latest is the entry with largest clock time)
-        this._replicationInfo.queued ++
-        this._replicationInfo.max = Math.max.apply(null, [this._replicationInfo.max, this._oplog.length, entry.clock ? entry.clock.time : 0])
+        this._replicationStatus.queued ++
+        this._recalculateReplicationMax(entry.clock ? entry.clock.time : 0)
         // logger.debug(`<replicate>`)
         this.events.emit('replicate', this.address.toString(), entry)
       })
       this._replicator.on('load.progress', (id, hash, entry, have, bufferedLength) => {
-        // console.log(">>", this._oplog.length, this._replicationInfo.progress, this._replicationInfo.buffered, bufferedLength)
-        if (this._replicationInfo.buffered > bufferedLength) {
-          this._replicationInfo.progress = this._replicationInfo.progress + bufferedLength
+        if (this._replicationStatus.buffered > bufferedLength) {
+          this._recalculateReplicationProgress(this.replicationStatus.progress + bufferedLength)
         } else {
-          this._replicationInfo.progress = Math.max.apply(null, [this._oplog.length, this._replicationInfo.progress, this._oplog.length + bufferedLength])
+          this._recalculateReplicationProgress(this._oplog.length + bufferedLength)
         }
-        // console.log(">>>", this._replicationInfo.progress)
-        this._replicationInfo.buffered = bufferedLength
-        this._replicationInfo.max = Math.max.apply(null, [this._replicationInfo.max, this._replicationInfo.progress])
+        this._replicationStatus.buffered = bufferedLength
+        this._recalculateReplicationMax(this.replicationStatus.progress)
         // logger.debug(`<replicate.progress>`)
-        this.events.emit('replicate.progress', this.address.toString(), hash, entry, this._replicationInfo.progress, have)
+        this.events.emit('replicate.progress', this.address.toString(), hash, entry, this.replicationStatus.progress, null)
       })
 
       const onLoadCompleted = async (logs, have) => {
@@ -106,10 +100,11 @@ class Store {
           for (let log of logs) {
             await this._oplog.join(log, -1, this._oplog.id)
           }
-          this._replicationInfo.max = Math.max(this._replicationInfo.max, this._oplog.length)
+          this._replicationStatus.queued -= logs.length
+          this._replicationStatus.buffered = this._replicator._buffer.length
+          this._recalculateReplicationMax()
           this._index.updateIndex(this._oplog)
-          this._replicationInfo.progress = Math.max.apply(null, [this._replicationInfo.progress, this._oplog.length])
-          this._replicationInfo.queued -= logs.length
+          this._recalculateReplicationProgress()
           // logger.debug(`<replicated>`)
           this.events.emit('replicated', this.address.toString(), logs.length)
         } catch (e) {
@@ -136,17 +131,21 @@ class Store {
     return this._key
   }
 
+  /**
+   * Returns the database's current replication status information
+   * @return {[Object]} [description]
+   */
+  get replicationStatus () {
+    return this._replicationStatus
+  }
+
   async close () {
     if (this.options.onClose)
       await this.options.onClose(this.address.toString())
 
     // Reset replication statistics
-    this._replicationInfo = {
-      buffered: 0,
-      queued: 0,
-      progress: 0,
-      max: 0,
-    }
+    this._replicationStatus.reset()
+
     // Reset database statistics
     this._stats = {
       snapshot: {
@@ -154,6 +153,7 @@ class Store {
       },
       syncRequestsReceieved: 0,
     }
+
     // Remove all event listeners
     this.events.removeAllListeners('load')
     this.events.removeAllListeners('load.progress')
@@ -173,9 +173,14 @@ class Store {
     return Promise.resolve()
   }
 
+  /**
+   * Drops a database and removes local data
+   * @return {[None]}
+   */
   async drop () {
     await this.close()
     await this._cache.destroy()
+    // Reset
     this._index = new this.options.Index(this.id)
     this._oplog = new Log(this._ipfs, this.id, null, null, null, this._key, this.access.write)
     this._cache = this.options.cache
@@ -192,11 +197,10 @@ class Store {
       this.events.emit('load', this.address.toString(), heads)
 
     await mapSeries(heads, async (head) => {
-      this._replicationInfo.max = Math.max(this._replicationInfo.max, head.clock.time)
+      this._recalculateReplicationMax(head.clock.time)
       let log = await Log.fromEntryHash(this._ipfs, head.hash, this._oplog.id, amount, this._oplog.values, this.key, this.access.write, this._onLoadProgress.bind(this))
       await this._oplog.join(log, amount, this._oplog.id)
-      this._replicationInfo.progress = Math.max.apply(null, [this._replicationInfo.progress, this._oplog.length])
-      this._replicationInfo.max = Math.max.apply(null, [this._replicationInfo.max, this._replicationInfo.progress])
+      this._recalculateReplicationProgress()
     })
 
     // Update the index
@@ -301,6 +305,8 @@ class Store {
   async loadFromSnapshot (onProgressCallback) {
     this.events.emit('load', this.address.toString())
 
+    const maxClock = (res, val) => Math.max(res, val.clock.time)
+
     const queue = await this._cache.get('queue')
     this.sync(queue || [])
 
@@ -364,10 +370,8 @@ class Store {
 
             if (header) {
               this._type = header.type
-              this._replicationInfo.max = Math.max(this._replicationInfo.max, values.reduce((res, val) => Math.max(res, val.clock.time), 0))
               resolve({ values: values, id: header.id, heads: header.heads, type: header.type })
             } else {
-              this._replicationInfo.max = 0
               resolve({ values: values, id: null, heads: null, type: null })
             }
           }
@@ -377,34 +381,34 @@ class Store {
       }
 
       const onProgress = (hash, entry, count, total) => {
-        this._replicationInfo.max = Math.max(this._replicationInfo.max, entry.clock.time)
-        this._replicationInfo.progress = Math.max.apply(null, [this._replicationInfo.progress, count, this._oplog.length])
-        this._onLoadProgress(hash, entry, this._replicationInfo.progress, this._replicationInfo.max)
+        this._recalculateReplicationStatus(count, entry.clock.time)
+        this._onLoadProgress(hash, entry)
       }
 
       // Fetch the entries
       // Timeout 1 sec to only load entries that are already fetched (in order to not get stuck at loading)
       const snapshotData = await loadSnapshotData()
+      this._recalculateReplicationMax(snapshotData.values.reduce(maxClock, 0))
       if (snapshotData) {
         const log = await Log.fromJSON(this._ipfs, snapshotData, -1, this._key, this.access.write, 1000, onProgress)
         await this._oplog.join(log, -1, this._oplog.id)
-        this._replicationInfo.max = Math.max.apply(null, [this._replicationInfo.max, this._replicationInfo.progress, this._oplog.length])
-        this._replicationInfo.progress = Math.max(this._replicationInfo.progress, this._oplog.length)
+        this._recalculateReplicationMax()
         this._index.updateIndex(this._oplog)
+        this._recalculateReplicationProgress()
         this.events.emit('replicated', this.address.toString())
       }
       this.events.emit('ready', this.address.toString(), this._oplog.heads)
     } else {
       throw new Error(`Snapshot for ${this.address} not found!`)
     }
+
     return this
   }
 
   async _addOperation (data, batchOperation, lastOperation, onProgressCallback) {
     if (this._oplog) {
       const entry = await this._oplog.append(data, this.options.referenceCount)
-      this._replicationInfo.progress++
-      this._replicationInfo.max = Math.max.apply(null, [this._replicationInfo.max, this._replicationInfo.progress, entry.clock.time])
+      this._recalculateReplicationStatus(this.replicationStatus.progress + 1, entry.clock.time)
       await this._cache.set('_localHeads', [entry])
       this._index.updateIndex(this._oplog)
       this.events.emit('write', this.address.toString(), entry, this._oplog.heads)
@@ -418,7 +422,32 @@ class Store {
   }
 
   _onLoadProgress (hash, entry, progress, total) {
-    this.events.emit('load.progress', this.address.toString(), hash, entry, Math.max(this._oplog.length, progress), Math.max(this._oplog.length || 0, this._replicationInfo.max || 0))
+    this._recalculateReplicationStatus(progress, total)
+    this.events.emit('load.progress', this.address.toString(), hash, entry, this.replicationStatus.progress, this.replicationStatus.max)
+  }
+
+  /* Replication Status state updates */
+
+  _recalculateReplicationProgress (max) {
+    this._replicationStatus.progress = Math.max.apply(null, [
+      this._replicationStatus.progress, 
+      this._oplog.length,
+      max || 0,
+    ])
+    this._recalculateReplicationMax(this.replicationStatus.progress)
+  }
+
+  _recalculateReplicationMax (max) {
+    this._replicationStatus.max = Math.max.apply(null, [
+      this._replicationStatus.max, 
+      this._oplog.length, 
+      max || 0,
+    ])
+  }
+
+  _recalculateReplicationStatus (maxProgress, maxTotal) {
+    this._recalculateReplicationProgress(maxProgress)
+    this._recalculateReplicationMax(maxTotal)
   }
 }
 

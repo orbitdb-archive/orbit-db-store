@@ -22,7 +22,7 @@ const DefaultOptions = {
 }
 
 class Store {
-  constructor (ipfs, id, address, options) {
+  constructor (ipfs, peerId, address, options) {
     // Set the options
     let opts = Object.assign({}, DefaultOptions)
     Object.assign(opts, options)
@@ -32,7 +32,8 @@ class Store {
     this._type = 'store'
 
     // Create IDs, names and paths
-    this.id = id
+    this.id = address.toString()
+    this.uid = peerId
     this.address = address
     this.dbname = address.path || ''
     this.events = new EventEmitter()
@@ -40,12 +41,11 @@ class Store {
     // External dependencies
     this._ipfs = ipfs
     this._cache = options.cache
-    this._index = new this.options.Index(this.id)
 
     this._keystore = options.keystore
     this._key = options && options.key
       ? options.key
-      : this._keystore.getKey(id) || this._keystore.createKey(id)
+      : this._keystore.getKey(peerId) || this._keystore.createKey(peerId)
     // FIX: duck typed interface
     this._ipfs.keystore = this._keystore
 
@@ -59,6 +59,9 @@ class Store {
 
     // Create the operations log
     this._oplog = new Log(this._ipfs, this.id, null, null, null, this._key, this.access.write)
+
+    // Create the index
+    this._index = new this.options.Index(this.uid)
 
     // Replication progress info
     this._replicationStatus = new ReplicationInfo()
@@ -98,7 +101,7 @@ class Store {
       const onLoadCompleted = async (logs, have) => {
         try {
           for (let log of logs) {
-            await this._oplog.join(log, -1, this._oplog.id)
+            await this._oplog.join(log)
           }
           this._replicationStatus.queued -= logs.length
           this._replicationStatus.buffered = this._replicator._buffer.length
@@ -179,7 +182,7 @@ class Store {
     await this.close()
     await this._cache.destroy()
     // Reset
-    this._index = new this.options.Index(this.id)
+    this._index = new this.options.Index(this.uid)
     this._oplog = new Log(this._ipfs, this.id, null, null, null, this._key, this.access.write)
     this._cache = this.options.cache
   }
@@ -196,8 +199,8 @@ class Store {
 
     await mapSeries(heads, async (head) => {
       this._recalculateReplicationMax(head.clock.time)
-      let log = await Log.fromEntryHash(this._ipfs, head.hash, this._oplog.id, amount, this._oplog.values, this.key, this.access.write, this._onLoadProgress.bind(this))
-      await this._oplog.join(log, amount, this._oplog.id)
+      let log = await Log.fromEntryHash(this._ipfs, head.hash, this._oplog.id, amount, this._oplog.values, this._key, this.access.write, this._onLoadProgress.bind(this))
+      await this._oplog.join(log, amount)
     })
 
     // Update the index
@@ -388,7 +391,7 @@ class Store {
       this._recalculateReplicationMax(snapshotData.values.reduce(maxClock, 0))
       if (snapshotData) {
         const log = await Log.fromJSON(this._ipfs, snapshotData, -1, this._key, this.access.write, 1000, onProgress)
-        await this._oplog.join(log, -1, this._oplog.id)
+        await this._oplog.join(log)
         await this._updateIndex()
         this.events.emit('replicated', this.address.toString())
       }

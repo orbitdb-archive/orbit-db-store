@@ -70,7 +70,7 @@ class Replicator extends EventEmitter {
    * @return {[Integer]} [Number of tasks queued]
    */
   get tasksQueued () {
-    return Object.keys(this._queue).length - this.tasksRunning
+    return Math.max(Object.keys(this._queue).length - this.tasksRunning, 0)
   }
 
   /**

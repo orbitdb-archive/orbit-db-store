@@ -95,7 +95,7 @@ class Store {
         this._replicationStatus.buffered = bufferedLength
         this._recalculateReplicationMax(this.replicationStatus.progress)
         // logger.debug(`<replicate.progress>`)
-        this.events.emit('replicate.progress', this.address.toString(), hash, entry, this.replicationStatus.progress, null)
+        this.events.emit('replicate.progress', this.address.toString(), hash, entry, this.replicationStatus.progress, this.replicationStatus.max)
       })
 
       const onLoadCompleted = async (logs, have) => {

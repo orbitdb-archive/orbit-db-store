@@ -101,7 +101,8 @@ class Store {
       const onLoadCompleted = async (logs, have) => {
         try {
           for (let log of logs) {
-            await this._oplog.join(log)
+            const newItems = this._oplog.difference(log);
+            await this._oplog.join(log, null, newItems);
           }
           this._replicationStatus.queued -= logs.length
           this._replicationStatus.buffered = this._replicator._buffer.length
@@ -200,8 +201,9 @@ class Store {
     await mapSeries(heads, async (head) => {
       this._recalculateReplicationMax(head.clock.time)
       let log = await Log.fromEntryHash(this._ipfs, head.hash, this._oplog.id, amount, this._oplog.values, this._key, this.access.write, this._onLoadProgress.bind(this))
-      await this._oplog.join(log, amount)
-    })
+      const newItems = this._oplog.difference(log);
+      await this._oplog.join(log, amount, newItems);
+    });
 
     // Update the index
     if (heads.length > 0)
@@ -391,9 +393,9 @@ class Store {
       this._recalculateReplicationMax(snapshotData.values.reduce(maxClock, 0))
       if (snapshotData) {
         const log = await Log.fromJSON(this._ipfs, snapshotData, -1, this._key, this.access.write, 1000, onProgress)
-        await this._oplog.join(log)
-        await this._updateIndex()
         this.events.emit('replicated', this.address.toString())
+        const newItems = this._oplog.difference(log);
+        await this._oplog.join(log, null, newItems);
       }
       this.events.emit('ready', this.address.toString(), this._oplog.heads)
     } else {

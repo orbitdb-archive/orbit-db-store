@@ -232,9 +232,9 @@ class Store {
         return Promise.resolve(null)
       }
 
-      if (!this.access.write.includes(head.key) && !this.access.write.includes('*')) {
         console.warn("Warning: Given input entry is not allowed in this log and was discarded (no write access).")
         return Promise.resolve(null)
+      if (!this.access.verify(head.key)) {
       }
 
       // TODO: verify the entry's signature here
@@ -412,7 +412,6 @@ class Store {
   }
 
   async _addOperation (data, batchOperation, lastOperation, onProgressCallback) {
-    if (this._oplog) {
       const entry = await this._oplog.append(data, this.options.referenceCount)
       this._recalculateReplicationStatus(this.replicationStatus.progress + 1, entry.clock.time)
       await this._cache.set('_localHeads', [entry])
@@ -420,6 +419,7 @@ class Store {
       this.events.emit('write', this.address.toString(), entry, this._oplog.heads)
       if (onProgressCallback) onProgressCallback(entry)
       return entry.hash
+    if (this._oplog && this.access.verify(this._key)) {
     }
   }
 

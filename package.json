@@ -16,7 +16,7 @@
   "author": "Haad",
   "license": "MIT",
   "dependencies": {
-      "ipfs-log": "git://github.com/coyotespike/ipfs-log.git#138600d5fec77d2647b7f7e0a1c125129d88af7d",
+      "ipfs-log": "git://github.com/coyotespike/ipfs-log.git#9f192959c05017ba30da2fb4cee893cc048f6fb2",
     "logplease": "^1.2.14",
     "p-each-series": "^1.0.0",
     "readable-stream": "~2.3.5"

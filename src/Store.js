@@ -102,7 +102,10 @@ class Store {
         try {
           for (let log of logs) {
             const newItems = this._oplog.difference(log);
-            await this._oplog.join(log, null, newItems);
+            const canJoin = await this.access.verifyEntries(Object.values(newItems), this._key, this.id, this._keystore);
+            if (canJoin) {
+              await this._oplog.join(log, null, newItems);
+            }
           }
           this._replicationStatus.queued -= logs.length
           this._replicationStatus.buffered = this._replicator._buffer.length
@@ -202,7 +205,10 @@ class Store {
       this._recalculateReplicationMax(head.clock.time)
       let log = await Log.fromEntryHash(this._ipfs, head.hash, this._oplog.id, amount, this._oplog.values, this._key, this.access.write, this._onLoadProgress.bind(this))
       const newItems = this._oplog.difference(log);
-      await this._oplog.join(log, amount, newItems);
+      const canJoin = await this.access.verifyEntries(Object.values(newItems), this._key, this.id, this._keystore);
+      if (canJoin) {
+        await this._oplog.join(log, amount, newItems);
+      }
     });
 
     // Update the index
@@ -232,9 +238,9 @@ class Store {
         return Promise.resolve(null)
       }
 
+      if (!this.access.verifyPermissions(head.key)) {
         console.warn("Warning: Given input entry is not allowed in this log and was discarded (no write access).")
         return Promise.resolve(null)
-      if (!this.access.verify(head.key)) {
       }
 
       // TODO: verify the entry's signature here
@@ -395,7 +401,10 @@ class Store {
         const log = await Log.fromJSON(this._ipfs, snapshotData, -1, this._key, this.access.write, 1000, onProgress)
         this.events.emit('replicated', this.address.toString())
         const newItems = this._oplog.difference(log);
-        await this._oplog.join(log, null, newItems);
+        const canJoin = await this.access.verifyEntries(Object.values(newItems), this._key, this.id, this._keystore);
+        if (canJoin) {
+          await this._oplog.join(log, null, newItems);
+        }
       }
       this.events.emit('ready', this.address.toString(), this._oplog.heads)
     } else {

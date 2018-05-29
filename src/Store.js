@@ -422,8 +422,8 @@ class Store {
 
   async _addOperation (data, batchOperation, lastOperation, onProgressCallback) {
     if (this._oplog) {
-      if (!this.access.verify(this._key)) throw new Error("Not allowed to write");
-      const entry = await this._oplog.append(data, this.options.referenceCount)
+      if (!this.access.verifyPermissions(this._key)) throw new Error("Not allowed to write");
+      const entry = await this._oplog.append(data, this.options.referenceCount, this.access.sign)
       this._recalculateReplicationStatus(this.replicationStatus.progress + 1, entry.clock.time)
       await this._cache.set('_localHeads', [entry])
       await this._updateIndex()

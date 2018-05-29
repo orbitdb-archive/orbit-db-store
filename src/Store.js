@@ -412,6 +412,8 @@ class Store {
   }
 
   async _addOperation (data, batchOperation, lastOperation, onProgressCallback) {
+    if (this._oplog) {
+      if (!this.access.verify(this._key)) throw new Error("Not allowed to write");
       const entry = await this._oplog.append(data, this.options.referenceCount)
       this._recalculateReplicationStatus(this.replicationStatus.progress + 1, entry.clock.time)
       await this._cache.set('_localHeads', [entry])
@@ -419,7 +421,6 @@ class Store {
       this.events.emit('write', this.address.toString(), entry, this._oplog.heads)
       if (onProgressCallback) onProgressCallback(entry)
       return entry.hash
-    if (this._oplog && this.access.verify(this._key)) {
     }
   }
 

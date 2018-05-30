@@ -101,7 +101,11 @@ class Store {
       const onLoadCompleted = async (logs, have) => {
         try {
           for (let log of logs) {
-            await this._oplog.join(log)
+            const newItems = this._oplog.difference(log);
+            const canJoin = await this.access.verifyEntries(Object.values(newItems), this._key, this.id, this._keystore);
+            if (canJoin) {
+              await this._oplog.join(log, null, newItems);
+            }
           }
           this._replicationStatus.queued -= logs.length
           this._replicationStatus.buffered = this._replicator._buffer.length
@@ -200,8 +204,12 @@ class Store {
     await mapSeries(heads, async (head) => {
       this._recalculateReplicationMax(head.clock.time)
       let log = await Log.fromEntryHash(this._ipfs, head.hash, this._oplog.id, amount, this._oplog.values, this._key, this.access.write, this._onLoadProgress.bind(this))
-      await this._oplog.join(log, amount)
-    })
+      const newItems = this._oplog.difference(log);
+      const canJoin = await this.access.verifyEntries(Object.values(newItems), this._key, this.id, this._keystore);
+      if (canJoin) {
+        await this._oplog.join(log, amount, newItems);
+      }
+    });
 
     // Update the index
     if (heads.length > 0)
@@ -230,7 +238,7 @@ class Store {
         return Promise.resolve(null)
       }
 
-      if (!this.access.write.includes(head.key) && !this.access.write.includes('*')) {
+      if (!this.access.verifyPermissions(head.key)) {
         console.warn("Warning: Given input entry is not allowed in this log and was discarded (no write access).")
         return Promise.resolve(null)
       }
@@ -391,9 +399,12 @@ class Store {
       this._recalculateReplicationMax(snapshotData.values.reduce(maxClock, 0))
       if (snapshotData) {
         const log = await Log.fromJSON(this._ipfs, snapshotData, -1, this._key, this.access.write, 1000, onProgress)
-        await this._oplog.join(log)
-        await this._updateIndex()
         this.events.emit('replicated', this.address.toString())
+        const newItems = this._oplog.difference(log);
+        const canJoin = await this.access.verifyEntries(Object.values(newItems), this._key, this.id, this._keystore);
+        if (canJoin) {
+          await this._oplog.join(log, null, newItems);
+        }
       }
       this.events.emit('ready', this.address.toString(), this._oplog.heads)
     } else {
@@ -411,7 +422,8 @@ class Store {
 
   async _addOperation (data, batchOperation, lastOperation, onProgressCallback) {
     if (this._oplog) {
-      const entry = await this._oplog.append(data, this.options.referenceCount)
+      if (!this.access.verifyPermissions(this._key)) throw new Error("Not allowed to write");
+      const entry = await this._oplog.append(data, this.options.referenceCount, this.access.sign)
       this._recalculateReplicationStatus(this.replicationStatus.progress + 1, entry.clock.time)
       await this._cache.set('_localHeads', [entry])
       await this._updateIndex()

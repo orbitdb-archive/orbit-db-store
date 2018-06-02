@@ -49,13 +49,6 @@ class Store {
     // FIX: duck typed interface
     this._ipfs.keystore = this._keystore
 
-    this.peers = []
-    // Access mapping
-    // const defaultAccess = { 
-    //   admin: [this._key.getPublic('hex')], 
-    //   read: [], // Not used atm, anyone can read
-    //   write: [this._key.getPublic('hex')] 
-    // }
     this.access = options.accessController
 
     this.access.on('updated', () => {
@@ -63,8 +56,12 @@ class Store {
       logger.debug("Access Update:\n", JSON.stringify(this.access.capabilities, null, 2))
     })
 
+    // Pass in custom signing and custom verification as an option or through the access controller
+     this.verifyEntry = options.verifyEntry || this.access.verifyEntry
+     this.decorateEntry = options.decorateEntry || this.access.decorateEntry
+
     // Create the operations log
-    this._oplog = new Log(this._ipfs, this.id, null, null, null, this._key, this.access.get('write'))
+    this._oplog = new Log(this._ipfs, this.id, null, null, null, this._key, this.access.get('write'), this.verifyEntry, this.decorateEntry)
 
     // Create the index
     this._index = new this.options.Index(this.uid)
@@ -191,7 +188,7 @@ class Store {
     await this.close()
     await this._cache.destroy()
     this._index = new this.options.Index(this.uid)
-    this._oplog = new Log(this._ipfs, this.id, null, null, null, this._key, this.access.get('write'))
+    this._oplog = new Log(this._ipfs, this.id, null, null, null, this._key, this.access.get('write'), this.verifyEntry, this.decorateEntry)
     this._cache = this.options.cache
   }
 
@@ -207,7 +204,7 @@ class Store {
 
     await mapSeries(heads, async (head) => {
       this._recalculateReplicationMax(head.clock.time)
-      let log = await Log.fromEntryHash(this._ipfs, head.hash, this._oplog.id, amount, this._oplog.values, this.key, this.access.get('write'), this._onLoadProgress.bind(this))
+      let log = await Log.fromEntryHash(this._ipfs, head.hash, this._oplog.id, amount, this._oplog.values, this.key, this.access.get('write'), this._onLoadProgress.bind(this, this.verifyEntry, this.decorateEntry))
       await this._oplog.join(log, amount)
     })
 
@@ -398,7 +395,7 @@ class Store {
       const snapshotData = await loadSnapshotData()
       this._recalculateReplicationMax(snapshotData.values.reduce(maxClock, 0))
       if (snapshotData) {
-        const log = await Log.fromJSON(this._ipfs, snapshotData, -1, this._key, this.access.get('write'), 1000, onProgress)
+        const log = await Log.fromJSON(this._ipfs, snapshotData, -1, this._key, this.access.get('write'), 1000, onProgress, this.verifyEntry, this.decorateEntry)
         await this._oplog.join(log)
         await this._updateIndex()
         this.events.emit('replicated', this.address.toString())

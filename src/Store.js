@@ -4,6 +4,7 @@ const EventEmitter = require('events').EventEmitter
 const Readable = require('readable-stream')
 const mapSeries = require('p-each-series')
 const Log = require('ipfs-log')
+const ACL = require('ipfs-log/src/acl')
 const Index = require('./Index')
 const Replicator = require('./Replicator')
 const ReplicationInfo = require('./replication-info')
@@ -58,7 +59,8 @@ class Store {
     this.access = options.accessController || defaultAccess
 
     // Create the operations log
-    this._oplog = new Log(this._ipfs, this.id, null, null, null, this._key, this.access.write)
+    this._acl = new ACL(this._keystore, this._key, this.access.write)
+    this._oplog = new Log(this._ipfs, this.id, null, null, null, this._acl)
 
     // Create the index
     this._index = new this.options.Index(this.uid)
@@ -183,7 +185,7 @@ class Store {
     await this._cache.destroy()
     // Reset
     this._index = new this.options.Index(this.uid)
-    this._oplog = new Log(this._ipfs, this.id, null, null, null, this._key, this.access.write)
+    this._oplog = new Log(this._ipfs, this.id, null, null, null, this._acl)
     this._cache = this.options.cache
   }
 
@@ -199,7 +201,7 @@ class Store {
 
     await mapSeries(heads, async (head) => {
       this._recalculateReplicationMax(head.clock.time)
-      let log = await Log.fromEntryHash(this._ipfs, head.hash, this._oplog.id, amount, this._oplog.values, this._key, this.access.write, this._onLoadProgress.bind(this))
+      let log = await Log.fromEntryHash(this._ipfs, head.hash, this._oplog.id, amount, this._oplog.values, this._acl, this._onLoadProgress.bind(this))
       await this._oplog.join(log, amount)
     })
 
@@ -390,7 +392,7 @@ class Store {
       const snapshotData = await loadSnapshotData()
       this._recalculateReplicationMax(snapshotData.values.reduce(maxClock, 0))
       if (snapshotData) {
-        const log = await Log.fromJSON(this._ipfs, snapshotData, -1, this._key, this.access.write, 1000, onProgress)
+        const log = await Log.fromJSON(this._ipfs, snapshotData, -1, this._acl, 1000, onProgress)
         await this._oplog.join(log)
         await this._updateIndex()
         this.events.emit('replicated', this.address.toString())

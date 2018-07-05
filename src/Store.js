@@ -403,9 +403,9 @@ class Store {
     return this
   }
 
-  async _updateIndex () {
+  async _updateIndex (entry) {
     this._recalculateReplicationMax()
-    await this._index.updateIndex(this._oplog)
+    await this._index.updateIndex(this._oplog, entry)
     this._recalculateReplicationProgress()
   }
 
@@ -414,7 +414,7 @@ class Store {
       const entry = await this._oplog.append(data, this.options.referenceCount)
       this._recalculateReplicationStatus(this.replicationStatus.progress + 1, entry.clock.time)
       await this._cache.set('_localHeads', [entry])
-      await this._updateIndex()
+      await this._updateIndex(entry)
       this.events.emit('write', this.address.toString(), entry, this._oplog.heads)
       if (onProgressCallback) onProgressCallback(entry)
       return entry.hash

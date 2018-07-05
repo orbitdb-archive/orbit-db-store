@@ -106,6 +106,12 @@ class Store {
           this._replicationStatus.queued -= logs.length
           this._replicationStatus.buffered = this._replicator._buffer.length
           await this._updateIndex()
+
+          //only store heads that has been verified and merges
+          const heads = this._oplog.heads
+          await this._cache.set('_remoteHeads', heads)
+          logger.debug(`Saved heads ${heads.length} [${heads.map(e => e.hash).join(', ')}]`)
+
           // logger.debug(`<replicated>`)
           this.events.emit('replicated', this.address.toString(), logs.length)
         } catch (e) {
@@ -256,9 +262,7 @@ class Store {
 
     return mapSeries(heads, saveToIpfs)
       .then(async (saved) => {
-        await this._cache.set('_remoteHeads', heads)
-        logger.debug(`Saved heads ${heads.length} [${saved.map(e => e.hash).join(', ')}]`)
-        return this._replicator.load(saved.filter(e => e !== null))
+          return this._replicator.load(saved.filter(e => e !== null))
       })
   }
 

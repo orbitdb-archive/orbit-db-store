@@ -107,6 +107,11 @@ class Replicator extends EventEmitter {
     }
   }
 
+  stop() {
+    //Clears the queue flusher
+    clearInterval(this._flushTimer)
+  }
+
   _addToQueue (entry) {
     const hash = entry.hash || entry
 

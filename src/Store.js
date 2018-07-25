@@ -150,6 +150,9 @@ class Store {
     if (this.options.onClose)
       await this.options.onClose(this.address.toString())
 
+    //Replicator teardown logic
+    this._replicator.stop();
+
     // Reset replication statistics
     this._replicationStatus.reset()
 
@@ -438,7 +441,7 @@ class Store {
 
   _recalculateReplicationProgress (max) {
     this._replicationStatus.progress = Math.max.apply(null, [
-      this._replicationStatus.progress, 
+      this._replicationStatus.progress,
       this._oplog.length,
       max || 0,
     ])
@@ -447,8 +450,8 @@ class Store {
 
   _recalculateReplicationMax (max) {
     this._replicationStatus.max = Math.max.apply(null, [
-      this._replicationStatus.max, 
-      this._oplog.length, 
+      this._replicationStatus.max,
+      this._oplog.length,
       max || 0,
     ])
   }

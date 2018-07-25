@@ -150,6 +150,9 @@ class Store {
     if (this.options.onClose)
       await this.options.onClose(this.address.toString())
 
+    //Replicator teardown logic
+    this._replicator.stop();
+
     // Reset replication statistics
     this._replicationStatus.reset()
 
@@ -177,9 +180,6 @@ class Store {
     // TODO: afaik we don't use 'closed' event anymore,
     // to be removed in future releases
     this.events.emit('closed', this.address.toString())
-
-    //Clears the queue flusher instatiated at ./Replicator.js:36
-    clearInterval(this._replicator._flushTimer);
     return Promise.resolve()
   }
 

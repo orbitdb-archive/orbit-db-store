@@ -177,6 +177,9 @@ class Store {
     // TODO: afaik we don't use 'closed' event anymore,
     // to be removed in future releases
     this.events.emit('closed', this.address.toString())
+
+    //Clears the queue flusher instatiated at ./Replicator.js:36
+    clearInterval(this._replicator._flushTimer);
     return Promise.resolve()
   }
 
@@ -438,7 +441,7 @@ class Store {
 
   _recalculateReplicationProgress (max) {
     this._replicationStatus.progress = Math.max.apply(null, [
-      this._replicationStatus.progress, 
+      this._replicationStatus.progress,
       this._oplog.length,
       max || 0,
     ])
@@ -447,8 +450,8 @@ class Store {
 
   _recalculateReplicationMax (max) {
     this._replicationStatus.max = Math.max.apply(null, [
-      this._replicationStatus.max, 
-      this._oplog.length, 
+      this._replicationStatus.max,
+      this._oplog.length,
       max || 0,
     ])
   }

@@ -380,7 +380,7 @@ class Store {
       await this.options.onLoad(this)
     }
 
-    this.events.emit('load', this.address.toString())
+    this.events.emit('load', this.address.toString()) //TODO: inconsistent params
 
     const maxClock = (res, val) => Math.max(res, val.clock.time)
 
@@ -476,7 +476,7 @@ class Store {
         const log = await Log.fromJSON(this._ipfs, this.identity, snapshotData, { access: this.access, sortFn: this.options.sortFn, length: -1, timeout: 1000, onProgressCallback: onProgress })
         await this._oplog.join(log)
         await this._updateIndex()
-        this.events.emit('replicated', this.address.toString())
+        this.events.emit('replicated', this.address.toString()) //TODO: inconsistent params, line 116
       }
       this.events.emit('ready', this.address.toString(), this._oplog.heads)
     } else {

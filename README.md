@@ -15,39 +15,106 @@ Base class for [orbit-db](https://github.com/orbitdb/orbit-db) data stores. You 
 
 - Node.js >= 8.0.0
 
-### API
+## Table of Contents
 
-#### Public methods
+<!-- toc -->
 
-##### `load(amount)`
+- [API](#api)
+  * [constructor(ipfs, peerId, address, options)](#constructoripfs-peerid-address-options)
+  * [Public methods](#public-methods)
+    + [load([amount])](#loadamount)
+    + [loadMoreFrom(amount, entries)](#loadmorefromamount-entries)
+    + [saveSnapshot()](#savesnapshot)
+    + [loadFromSnapshot()](#loadfromsnapshot)
+    + [close()](#close)
+    + [drop()](#drop)
+    + [sync(heads)](#syncheads)
+  * [Properties](#properties)
+    + [address](#address)
+    + [key](#key)
+    + [all](#all)
+    + [type](#type)
+    + [replicationStatus](#replicationstatus)
+  * [Events](#events)
+  * [Private methods](#private-methods)
+    + [_addOperation(data)](#_addoperationdata)
+  * [Creating Custom Data Stores](#creating-custom-data-stores)
+- [Contributing](#contributing)
+- [License](#license)
 
-Load the database using locally persisted state. Can specify how many entries to load with `amount` argument.
+<!-- tocstop -->
 
-##### `saveSnapshot()`
+## API
 
-Save the current state of the database locally. Returns a *Promise* that resolves to a IPFS Multihash as a Base58 encoded string. The the database can be loaded using this hash.
+### constructor(ipfs, peerId, address, options)
 
-##### `loadFromSnapshot(hash, onProgressCallback)`
+**ipfs** can be an [IPFS](https://github.com/ipfs/js-ipfs) instance or an [IPFS-API](https://github.com/ipfs/js-ipfs) instance. **peerId** is a string identifying the peer, usually the base58 string of the [PeerId](https://github.com/libp2p/js-peer-id#tob58string) of the IPFS instance. **address** is the OrbitDB address to be used for the store.
 
-Load the state of the database from a snapshot. *hash* is the IPFS Multihash of the snapshot data. Returns a *Promise* that resolves when the database has been loaded.
+`options` is an object with the following required properties:
 
-##### `close()`
+- `cache`: A [Cache](https://github.com/orbitdb/orbit-db-cache) instance to use for storing heads and snapshots.
+- `Index` : By default it uses an instance of [Index](https://github.com/orbitdb/orbit-db-store/blob/master/src/Index.js).
+- `keystore`: A [Keystore](https://github.com/orbitdb/orbit-db-keystore) instance to use for key management.
 
-Uninitialize the store. Emits `close` after the store has been uninitialized.
+the following properties are optional:
 
-##### `drop()`
+- `maxHistory` (Integer): The number of entries to load (Default: `-1`).
+- `referenceCount` (Integer): The number of previous ipfs-log entries a new entry should reference (Default: `64`).
+- `replicationConcurrency` (Integer): The number of concurrent replication processes (Default: `128`).
+- `key`: A [KeyPair](https://github.com/indutny/elliptic/blob/master/lib/elliptic/ec/key.js#L8) instance. By default the provided keystore is used to find an existing KeyPair for the given `peerId`, otherwise a new KeyPair will be created using the given `peerId`.
+- `accessController` (Object): By default only the owner will have write access.
+- `onClose` (Function): A function to be called with a string of the OrbitDB address of the database that is closing.
 
-Remove the database locally. This doesn't remove or delete the database from peers who have replicated the database.
+### Public methods
 
-##### `sync(heads)`
+#### load([amount])
+> Load the database using locally persisted state.
 
-Sync this database with entries from *heads* where *heads* is an array of ipfs-log Entries. Usually, you don't need to call this method manually as OrbitDB takes care of this for you.
+Returns a **Promise** that resolves once complete. Provide an `amount` argument to specify how many entries to load.
 
-#### Properties
+#### loadMoreFrom(amount, entries)
+> TODO
 
-##### `address`
+```javascript
+//TODO
+db.loadMoreFrom()
+```
 
-Get the address of this database. Returns an object `{ root: <manifestHash>, path: <path> }`. Convert to a string with `db.address.toString()`.
+#### saveSnapshot()
+> Save the current state of the database locally.
+
+Returns a **Promise** that resolves to an array containing an object with the following properties:
+
+- `path` of the snapshot file
+- `hash` representing the IPFS Multihash (as a Base58 encoded string) of the snapshot file
+- `size` of the snapshot file
+
+#### loadFromSnapshot()
+> Load the state of the database from a snapshot.
+
+Returns a **Promise** that resolves to a store instance once it has been loaded.
+
+#### close()
+> Uninitialize the store.
+
+Returns a **promise** that resolves once complete. Emits `close` after the store has been uninitialized.
+
+#### drop()
+> Remove the database locally.
+
+Returns a **promise** that resolves once complete. This doesn't remove or delete the database from peers who have replicated the database.
+
+#### sync(heads)
+> Sync this database with entries from **heads** where **heads** is an array of ipfs-log Entries.
+
+Usually, you don't need to call this method manually as OrbitDB takes care of this for you.
+
+### Properties
+
+#### address
+> Get the address of this database.
+
+Returns an object `{ root: <manifestHash>, path: <path> }`. Convert to a string with `db.address.toString()`.
 
 ```javascript
 console.log(db.address.toString())
@@ -63,17 +130,28 @@ console.log(db.identity.publicKey)
 // 042c07044e7ea51a489c02854db5e09f0191690dc59db0afd95328c9db614a2976e088cab7c86d7e48183191258fc59dc699653508ce25bf0369d67f33d5d77839
 ```
 
-##### `type`
+#### all
+> Get all of the entries in the store index
 
-The type of datastore model of the current instance.
+Returns an array of all store entries within the index.
+
+```javascript
+db.all
+```
+
+#### type
+> Get the store type
+
+Returns a string of the type of datastore model of the current instance.
 
 ```javascript
 console.log(db.type) // "eventlog"
 ```
 
-##### `replicationStatus`
+#### replicationStatus
+> Get database replication status information such as total number of entries and loading progress.
 
-Get database replication status information such as total number of entries and loading progress.
+Returns an instance of [ReplicationInfo](https://github.com/orbitdb/orbit-db-store/blob/master/src/replication-info.js).
 
 ```javascript
 console.log(db.replicationStatus)
@@ -84,56 +162,80 @@ console.log(db.replicationStatus)
 
   Store has an `events` ([EventEmitter](https://nodejs.org/api/events.html)) object that emits events that describe what's happening in the database.
 
-  - `load` - (dbname, hash)
+  - `load` - (address, heads)
 
-    Emitted before loading the database history. *hash* is the hash from which the history is loaded.
+    Emitted before loading the database history. **address** is a string of the OrbitDB address being loaded. **heads** is an array of ipfs-log Entries from which the history is loaded.
 
     ```javascript
-    db.events.on('load', (id, hash) => ... )
+    db.events.on('load', (address, heads) => ... )
     db.load()
     ```
 
-  - `ready` - (dbname)
+  - `ready` - (address, heads)
 
-    Emitted after fully loading the database history.
+    Emitted after fully loading the database history. **address** is a string of the OrbitDB address that emitted the event. **heads** is an array of ipfs-log Entries.
 
     ```javascript
-    db.events.on('ready', (id) => ... )
+    db.events.on('ready', (address, heads) => ... )
     db.load()
     ```
 
-  - `load.progress` - (id, hash, entry, progress, total)
+  - `load.progress` - (address, hash, entry, progress, total)
 
-    Emitted for each entry during load.
-
-    *Progress* is the current load count. *Total* is the maximum load count (ie. length of the full database). These are useful eg. for displaying a load progress percentage.
+    Emitted for each entry during load. **address** is a string of the OrbitDB address that emitted the event. **hash** is the multihash of the entry that was just loaded. **entry** is the ipfs-log Entry that was loaded. **Progress** is the current load count. **Total** is the maximum load count (ie. length of the full database). These are useful eg. for displaying a load progress percentage.
 
     ```javascript
-    db.events.on('load.progress', (id, hash, entry, progress, total) => ... )
+    db.events.on('load.progress', (address, hash, entry, progress, total) => ... )
     db.load()
     ```
 
-  - `replicated` - (dbname)
+  - `replicate` - (address, entry)
 
-    Emitted after the database was synced with an update from a peer database.
-
-    ```javascript
-    db.events.on('replicated', (id, length) => ... )
-    ```
-
-  - `write` - (id, hash, entry)
-
-    Emitted after an entry was added locally to the database. *hash* is the IPFS hash of the latest state of the database. *entry* is the Entry that was added.
+    Emitted before replicating a part of the database. **address** is a string of the OrbitDB address that emitted the event. **entry** is the ipfs-log Entry that is being processed.
 
     ```javascript
-    db.events.on('write', (id, hash, entry) => ... )
+    db.events.on('replicate', (address, entry) => ... )
     ```
 
-#### Private methods
+  - `replicate.progress` - (address, hash, entry, progress, total)
 
-##### `_addOperation(data)`
+    Emitted while replicating a database. **address** is a string of the OrbitDB address of the database that emitted the event. **hash** is the multihash of the entry that was just replicated. **entry** is the ipfs-log Entry that was replicated. **progress** is an integer representing the current progress. **total** is an integer representing the remaining operations.
 
-Add an entry to the store. Takes `data` as a parameter which can be of any type.
+    ```javascript
+    db.events.on('replicate.progress', (address, hash, entry, progress, total) => ... )
+    ```
+
+  - `replicated` - (address, logCount)
+
+    Emitted after the database was synced with an update from a peer database. **address** is a string of the OrbitDB address that emitted the event. **logCount** ...
+
+    ```javascript
+    db.events.on('replicated', (address, logCount) => ... )
+    ```
+
+  - `write` - (address, entry, heads)
+
+    Emitted after an entry was added locally to the database. **address** is a string of the OrbitDB address that emitted the event. **entry** is the Entry that was added. **heads** is an array of ipfs-log Entries.
+
+    ```javascript
+    db.events.on('write', (address, entry, heads) => ... )
+    ```
+
+  - `closed` - (address)
+
+    Emitted once the database has finished closing. **address** is a string of the OrbitDB address that emitted the event.
+
+    ```javascript
+    db.events.on('closed', (address) => ... )
+    db.close()
+    ```
+
+### Private methods
+
+#### _addOperation(data)
+> Add an entry to the store.
+
+Returns a **Promise** that resolves to the IPFS Multihash of the added entry. Takes `data` as a parameter which can be of any type.
 
 ```javascript
 this._addOperation({
@@ -153,9 +255,9 @@ const Store         = require('orbit-db-store');
 const KeyValueIndex = require('./KeyValueIndex');
 
 class KeyValueStore extends Store {
-  constructor(ipfs, identity, dbname, options) {
+  constructor(ipfs, identity, address, options) {
     Object.assign(options || {}, { Index: KeyValueIndex });
-    super(ipfs, identity, dbname, options)
+    super(ipfs, identity, address, options)
   }
 
   get(key) {

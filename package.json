@@ -9,6 +9,7 @@
     "test:browser": "npm run build:tests && mocha-headless-chrome -f ./test/browser/index.html -a no-sandbox",
     "build": "npm run build:dist",
     "build:dist": "webpack --config ./conf/webpack.config.js --display-modules --sort-modules-by size --mode production",
+    "build:docs": "markdown-toc --no-first1 -i README.md",
     "build:tests": "webpack --config ./conf/webpack.tests.config.js --mode production",
     "lint": "standard"
   },
@@ -45,6 +46,7 @@
     "@babel/runtime": "^7.4.5",
     "babel-loader": "~8.0.4",
     "json-loader": "~0.5.7",
+    "markdown-toc": "^1.2.0",
     "mocha": "^6.2.0",
     "mocha-headless-chrome": "^2.0.3",
     "orbit-db-cache": "~0.3.0",

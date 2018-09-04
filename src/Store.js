@@ -1,11 +1,11 @@
 'use strict'
 
 const EventEmitter = require('events').EventEmitter
-const Readable = require('readable-stream')
 const mapSeries = require('p-each-series')
 const Log = require('ipfs-log')
 const Logger = require('logplease')
 
+const SnapshotManager = require('./snapshot-manager')
 const StoreIndex = require('./Index')
 const Replicator = require('./Replicator')
 const ReplicationInfo = require('./replication-info')
@@ -77,6 +77,7 @@ class Store extends EventEmitter {
     this._replicator.on('load.added', this._onLoadAdded.bind(this))
     this._replicator.on('load.progress', this._onReplicatorLoadProgress.bind(this))
     this._replicator.on('load.end', this._onLoadCompleted.bind(this))
+    this._snapshotManager = new SnapshotManager(this._ipfs, this, this._cache, this._replicator)
 
     this.emit('initialized', this)
   }
@@ -265,135 +266,42 @@ class Store extends EventEmitter {
 
   async saveSnapshot () {
     const unfinished = this._replicator.getQueue()
-
-    let snapshotData = this._oplog.toSnapshot()
-    let header = new Buffer(JSON.stringify({
-      id: snapshotData.id,
-      heads: snapshotData.heads,
-      size: snapshotData.values.length,
-      type: this.type,
-    }))
-    const rs = new Readable()
-    let size = new Uint16Array([header.length])
-    let bytes = new Buffer(size.buffer)
-    rs.push(bytes)
-    rs.push(header)
-
-    const addToStream = (val) => {
-      let str = new Buffer(JSON.stringify(val))
-      let size = new Uint16Array([str.length])
-      rs.push(new Buffer(size.buffer))
-      rs.push(str)
-    }
-
-    snapshotData.values.forEach(addToStream)
-    rs.push(null) // tell the stream we're finished
-
-    const snapshot = await this._ipfs.files.add(rs)
-
-    await this._cache.set('snapshot', snapshot[snapshot.length - 1])
-    await this._cache.set('queue', unfinished)
-
-    logger.debug(`Saved snapshot: ${snapshot[snapshot.length - 1].hash}, queue length: ${unfinished.length}`)
-
-    return snapshot
+    return this._snapshotManager.saveSnapshot(this._ipfs, this._oplog, unfinished, this._type)
   }
 
-  async loadFromSnapshot (onProgressCallback) {
+  async loadFromSnapshot () {
     this.emit('load', this.address.toString())
 
-    const maxClock = (res, val) => Math.max(res, val.clock.time)
     const queue = await this._cache.get('queue')
     this.sync(queue || [])
 
-    const snapshot = await this._cache.get('snapshot')
+    const snapshot = await this._snapshotManager.loadSnapshot(this._ipfs, this._cache, queue, this.address)
     if (snapshot) {
-      const res = await this._ipfs.files.catReadableStream(snapshot.hash)
-      const loadSnapshotData = () => {
-        return new Promise((resolve, reject) => {
-          let buf = new Buffer(0)
-          let q = []
-
-          const bufferData = (d) => {
-            this._byteSize += d.length
-            if (q.length < 20000) {
-              q.push(d)
-            } else {
-              const a = Buffer.concat(q)
-              buf = Buffer.concat([buf, a])
-              q = []
-            }
-          }
-
-          const done = () => {
-            if (q.length > 0) {
-              const a = Buffer.concat(q)
-              buf = Buffer.concat([buf, a])
-            }
-
-            function toArrayBuffer (buf) {
-              var ab = new ArrayBuffer(buf.length)
-              var view = new Uint8Array(ab)
-              for (var i = 0; i < buf.length; ++i) {
-                view[i] = buf[i]
-              }
-              return ab
-            }
-
-            const headerSize = parseInt(new Uint16Array(toArrayBuffer(buf.slice(0, 2))))
-            let header
-
-            try {
-              header = JSON.parse(buf.slice(2, headerSize + 2))
-            } catch (e) {
-              // TODO
-            }
-
-            let values = []
-            let a = 2 + headerSize
-            while (a < buf.length) {
-              const s = parseInt(new Uint16Array(toArrayBuffer(buf.slice(a, a + 2))))
-              a += 2
-              const data = buf.slice(a, a + s)
-              try {
-                const d = JSON.parse(data)
-                values.push(d)
-              } catch (e) {
-              }
-              a += s
-            }
-
-            if (header) {
-              this._type = header.type
-              resolve({ values: values, id: header.id, heads: header.heads, type: header.type })
-            } else {
-              resolve({ values: values, id: null, heads: null, type: null })
-            }
-          }
-          res.on('data', bufferData)
-          res.on('end', done)
-        })
-      }
-
-      const onProgress = (hash, entry, count, total) => {
-        this._recalculateReplicationStatus(count, entry.clock.time)
-        this._onLoadProgress(hash, entry)
-      }
-
+      const maxClock = (res, val) => Math.max(res, val.clock.time)
+      this._recalculateReplicationMax(snapshot.values.reduce(maxClock, 0))
       // Fetch the entries
       // Timeout 1 sec to only load entries that are already fetched (in order to not get stuck at loading)
-      const snapshotData = await loadSnapshotData()
-      this._recalculateReplicationMax(snapshotData.values.reduce(maxClock, 0))
-      if (snapshotData) {
-        const log = await Log.fromJSON(this._ipfs, snapshotData, -1, this._key, this.access.write, 1000, onProgress)
-        await this._oplog.join(log)
-        await this._updateIndex()
-        this.emit('replicated', this.address.toString())
-      }
-      this.emit('ready', this.address.toString(), this._oplog.heads)
-    } else {
-      throw new Error(`Snapshot for ${this.address} not found!`)
+      const length = -1
+      const timeout = 1000
+      const log = await Log.fromJSON(
+        this._ipfs,
+        snapshot,
+        length,
+        this._key,
+        this.access.write,
+        timeout,
+        (hash, entry, count) => {
+          this._recalculateReplicationStatus(count, entry.clock.time)
+          this._onLoadProgress(hash, entry)
+        }
+      )
+
+      await this._oplog.join(log)
+      await this._updateIndex()
+      this.emit('replicated', this.address.toString())
     }
+
+    this.emit('ready', this.address.toString(), this._oplog.heads)
 
     return this
   }

@@ -59,11 +59,8 @@ class Store extends EventEmitter {
     this._cache = cache
     this._index = new Index(this.uid)
 
-    // Create the index
-    this._index = new this.options.Index(this.uid)
-
-    // Replication progress info
-    this._replicationStatus = new ReplicationInfo()
+    // Create the operations log
+    this._oplog = new Log(this._ipfs, this.address.toString(), null, null, null, this._key, this.access.write)
 
     // Statistics
     this._stats = {
@@ -73,51 +70,49 @@ class Store extends EventEmitter {
       syncRequestsReceieved: 0,
     }
 
+    // Replication progress info
+    const { referenceCount, replicationConcurrency, replicate } = this.options
+    this._replicationStatus = new ReplicationInfo()
+    this._replicator = new Replicator(this, this.options.replicationConcurrency)
+    this._replicator.on('load.added', this._onLoadAdded.bind(this))
+    this._replicator.on('load.progress', this._onReplicatorLoadProgress.bind(this))
+    this._replicator.on('load.end', this._onLoadCompleted.bind(this))
+  }
+
+  _onReplicatorLoadProgress(id, hash, entry, have, bufferedLength) {
+    const progress = this._replicationStatus.buffered > bufferedLength ? this._replicationStatus.progress + bufferedLength : this._oplog.length + bufferedLength
+    this._recalculateReplicationProgress(progress)
+    this._replicationStatus.buffered = bufferedLength
+    this._recalculateReplicationMax(this._replicationStatus.progress)
+    // logger.debug(`<replicate.progress>`)
+    this.emit('replicate.progress', this.address.toString(), hash, entry, this._replicationStatus.progress, this._replicationStatus.max)
+  }
+
+  _onLoadAdded (entry) {
+    // Update the latest entry state (latest is the entry with largest clock time)
+    this._replicationStatus.queued ++
+    const max = entry.clock ? entry.clock.time : 0
+    this._recalculateReplicationMax(max)
+    // logger.debug(`<replicate>`)
+    this.emit('replicate', this.address.toString(), entry)
+  }
+
+  async _onLoadCompleted (logs, have) {
     try {
-      this._replicator = new Replicator(this, this.options.replicationConcurrency)
-      // For internal backwards compatibility,
-      // to be removed in future releases
-      this._loader = this._replicator
-      this._replicator.on('load.added', (entry) => {
-        // Update the latest entry state (latest is the entry with largest clock time)
-        this._replicationStatus.queued ++
-        this._recalculateReplicationMax(entry.clock ? entry.clock.time : 0)
-        // logger.debug(`<replicate>`)
-        this.events.emit('replicate', this.address.toString(), entry)
-      })
-      this._replicator.on('load.progress', (id, hash, entry, have, bufferedLength) => {
-        if (this._replicationStatus.buffered > bufferedLength) {
-          this._recalculateReplicationProgress(this.replicationStatus.progress + bufferedLength)
-        } else {
-          this._recalculateReplicationProgress(this._oplog.length + bufferedLength)
-        }
-        this._replicationStatus.buffered = bufferedLength
-        this._recalculateReplicationMax(this.replicationStatus.progress)
-        // logger.debug(`<replicate.progress>`)
-        this.events.emit('replicate.progress', this.address.toString(), hash, entry, this.replicationStatus.progress, this.replicationStatus.max)
-      })
-
-      const onLoadCompleted = async (logs, have) => {
-        try {
-          for (let log of logs) {
-            await this._oplog.join(log)
-          }
-          this._replicationStatus.queued -= logs.length
-          this._replicationStatus.buffered = this._replicator._buffer.length
-          await this._updateIndex()
-
-          //only store heads that has been verified and merges
-          const heads = this._oplog.heads
-          await this._cache.set('_remoteHeads', heads)
-          logger.debug(`Saved heads ${heads.length} [${heads.map(e => e.hash).join(', ')}]`)
-
-          // logger.debug(`<replicated>`)
-          this.events.emit('replicated', this.address.toString(), logs.length)
-        } catch (e) {
-          console.error(e)
-        }
+      for (let log of logs) {
+        await this._oplog.join(log)
       }
-      this._replicator.on('load.end', onLoadCompleted)
+      this._replicationStatus.queued -= logs.length
+      this._replicationStatus.buffered = this._replicator._buffer.length
+      await this._updateIndex()
+
+      //only store heads that has been verified and merges
+      const heads = this._oplog.heads
+      await this._cache.set('_remoteHeads', heads)
+      logger.debug(`Saved heads ${heads.length} [${heads.map(e => e.hash).join(', ')}]`)
+
+      // logger.debug(`<replicated>`)
+      this.emit('replicated', this.address.toString(), logs.length)
     } catch (e) {
       console.error("Store Error:", e)
     }
@@ -185,7 +180,7 @@ class Store extends EventEmitter {
     await this._cache.destroy()
     // Reset
     this._index = new this.options.Index(this.uid)
-    this._oplog = new Log(this._ipfs, this.id, null, null, null, this._key, this.access.write)
+    this._oplog = new Log(this._ipfs, this.address.toString(), null, null, null, this._key, this.access.write)
     this._cache = this.options.cache
   }
 
@@ -439,7 +434,7 @@ class Store extends EventEmitter {
       this._oplog.length,
       max || 0,
     ])
-    this._recalculateReplicationMax(this.replicationStatus.progress)
+    this._recalculateReplicationMax(this._replicationStatus.progress)
   }
 
   _recalculateReplicationMax (max) {

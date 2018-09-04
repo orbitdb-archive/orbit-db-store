@@ -18,6 +18,7 @@
   "dependencies": {
     "ipfs-log": "~4.1.0",
     "logplease": "^1.2.14",
+    "orbit-db-cache": "^0.2.4",
     "p-each-series": "^1.0.0",
     "readable-stream": "~2.3.5"
   }

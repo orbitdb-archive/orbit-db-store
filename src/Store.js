@@ -4,6 +4,7 @@ const EventEmitter = require('events').EventEmitter
 const mapSeries = require('p-each-series')
 const Log = require('ipfs-log')
 const Logger = require('logplease')
+const Cache = require('orbit-db-cache')
 
 const SnapshotManager = require('./snapshot-manager')
 const StoreIndex = require('./Index')
@@ -119,6 +120,29 @@ class Store extends EventEmitter {
     } catch (e) {
       console.error("Store Error:", e)
     }
+  }
+
+  static async loadCache(path, address) {
+    let cache
+    try {
+      cache = await Cache.load(path, address)
+    } catch (e) {
+      console.error(e)
+      logger.error(`Couldn't load Cache: ${e}`)
+    }
+
+    return cache
+  }
+
+  static async loadManifest(path, address) {
+    const cache = await Store.loadCache(path, address)
+    return cache.get(path.join(address.toString(), '_manifest'))
+  }
+
+  static async saveManifest(path, address) {
+    const cache = await Store.loadCache(path, address)
+    await cache.set(path.join(address.toString(), '_manifest'), address.root)
+    logger.debug(`Saved manifest to IPFS as '${address.root}'`)
   }
 
   get all () {

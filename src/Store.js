@@ -4,16 +4,17 @@ const EventEmitter = require('events').EventEmitter
 const Readable = require('readable-stream')
 const mapSeries = require('p-each-series')
 const Log = require('ipfs-log')
-const Index = require('./Index')
+const Logger = require('logplease')
+
+const StoreIndex = require('./Index')
 const Replicator = require('./Replicator')
 const ReplicationInfo = require('./replication-info')
 
-const Logger = require('logplease')
 const logger = Logger.create("orbit-db.store", { color: Logger.Colors.Blue })
 Logger.setLogLevel('ERROR')
 
 const DefaultOptions = {
-  Index: Index,
+  Index: StoreIndex,
   maxHistory: -1,
   path: './orbitdb',
   replicate: true,
@@ -57,8 +58,10 @@ class Store {
     }
     this.access = options.accessController || defaultAccess
 
-    // Create the operations log
-    this._oplog = new Log(this._ipfs, this.id, null, null, null, this._key, this.access.write)
+    // Caching and Index
+    const { cache, Index } = this.options
+    this._cache = cache
+    this._index = new Index(this.uid)
 
     // Create the index
     this._index = new this.options.Index(this.uid)

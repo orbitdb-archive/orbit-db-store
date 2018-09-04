@@ -273,7 +273,7 @@ class Store extends EventEmitter {
     this.emit('load', this.address.toString())
 
     const queue = await this._cache.get('queue')
-    this.sync(queue || [])
+    await this.sync(queue || [])
 
     const snapshot = await this._snapshotManager.loadSnapshot(this._ipfs, this._cache, queue, this.address)
     if (snapshot) {

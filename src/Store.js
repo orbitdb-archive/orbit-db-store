@@ -26,31 +26,33 @@ class Store extends EventEmitter {
   constructor(ipfs, peerId, address, options) {
     super()
 
-    // Create IDs, names and paths
-    this.id = address.toString()
-    this.uid = peerId
-    this.address = address
-    this.dbname = address.path || ''
-    this.events = new EventEmitter()
+    if (!ipfs) throw new Error('IPFS instance not defined')
+    if (!peerId) throw new Error('Peer id is required')
+    if (!address) throw new Error('Address is required')
 
-    // External dependencies
     this._ipfs = ipfs
-    this._cache = options.cache
+    // Default store type
+    this._type = 'store'
+    this.address = address
+    this.dbname = address.path
+    this.uid = peerId
 
-    this._keystore = options.keystore
-    this._key = options && options.key
-      ? options.key
-      : this._keystore.getKey(peerId) || this._keystore.createKey(peerId)
+    this.options = Object.assign({}, DefaultOptions, options)
+
+    // Access controller
+    const { accessController, key, keystore } = this.options
+    if (!accessController) throw new Error('Access controller not defined')
+    this._keystore = keystore
+    this._key = key || this._keystore.getKey(peerId) || this._keystore.createKey(peerId)
     // FIX: duck typed interface
     this._ipfs.keystore = this._keystore
-
     // Access mapping
     const defaultAccess = {
       admin: [this._key.getPublic('hex')],
       read: [], // Not used atm, anyone can read
       write: [this._key.getPublic('hex')],
     }
-    this.access = options.accessController || defaultAccess
+    this.access = accessController || defaultAccess
 
     // Caching and Index
     const { cache, Index } = this.options

@@ -22,15 +22,9 @@ const DefaultOptions = {
   replicationConcurrency: 128,
 }
 
-class Store {
-  constructor (ipfs, peerId, address, options) {
-    // Set the options
-    let opts = Object.assign({}, DefaultOptions)
-    Object.assign(opts, options)
-    this.options = opts
-
-    // Default type
-    this._type = 'store'
+class Store extends EventEmitter {
+  constructor(ipfs, peerId, address, options) {
+    super()
 
     // Create IDs, names and paths
     this.id = address.toString()
@@ -168,22 +162,16 @@ class Store {
     }
 
     // Remove all event listeners
-    this.events.removeAllListeners('load')
-    this.events.removeAllListeners('load.progress')
-    this.events.removeAllListeners('replicate')
-    this.events.removeAllListeners('replicate.progress')
-    this.events.removeAllListeners('replicated')
-    this.events.removeAllListeners('ready')
-    this.events.removeAllListeners('write')
+    this.removeAllListeners('load')
+    this.removeAllListeners('load.progress')
+    this.removeAllListeners('replicate')
+    this.removeAllListeners('replicate.progress')
+    this.removeAllListeners('replicated')
+    this.removeAllListeners('ready')
+    this.removeAllListeners('write')
 
     // Close cache
     await this._cache.close()
-
-    // Database is now closed
-    // TODO: afaik we don't use 'closed' event anymore,
-    // to be removed in future releases
-    this.events.emit('closed', this.address.toString())
-    return Promise.resolve()
   }
 
   /**
@@ -207,7 +195,7 @@ class Store {
     const heads = localHeads.concat(remoteHeads)
 
     if (heads.length > 0)
-      this.events.emit('load', this.address.toString(), heads)
+      this.emit('load', this.address.toString(), heads)
 
     await mapSeries(heads, async (head) => {
       this._recalculateReplicationMax(head.clock.time)
@@ -219,7 +207,7 @@ class Store {
     if (heads.length > 0)
       await this._updateIndex()
 
-    this.events.emit('ready', this.address.toString(), this._oplog.heads)
+    this.emit('ready', this.address.toString(), this._oplog.heads)
   }
 
   sync (heads) {
@@ -313,15 +301,13 @@ class Store {
   }
 
   async loadFromSnapshot (onProgressCallback) {
-    this.events.emit('load', this.address.toString())
+    this.emit('load', this.address.toString())
 
     const maxClock = (res, val) => Math.max(res, val.clock.time)
-
     const queue = await this._cache.get('queue')
     this.sync(queue || [])
 
     const snapshot = await this._cache.get('snapshot')
-
     if (snapshot) {
       const res = await this._ipfs.files.catReadableStream(snapshot.hash)
       const loadSnapshotData = () => {
@@ -403,9 +389,9 @@ class Store {
         const log = await Log.fromJSON(this._ipfs, snapshotData, -1, this._key, this.access.write, 1000, onProgress)
         await this._oplog.join(log)
         await this._updateIndex()
-        this.events.emit('replicated', this.address.toString())
+        this.emit('replicated', this.address.toString())
       }
-      this.events.emit('ready', this.address.toString(), this._oplog.heads)
+      this.emit('ready', this.address.toString(), this._oplog.heads)
     } else {
       throw new Error(`Snapshot for ${this.address} not found!`)
     }
@@ -422,11 +408,14 @@ class Store {
   async _addOperation (data, batchOperation, lastOperation, onProgressCallback) {
     if (this._oplog) {
       const entry = await this._oplog.append(data, this.options.referenceCount)
-      this._recalculateReplicationStatus(this.replicationStatus.progress + 1, entry.clock.time)
+      this._recalculateReplicationStatus(this._replicationStatus.progress + 1, entry.clock.time)
+
       await this._cache.set('_localHeads', [entry])
       await this._updateIndex()
-      this.events.emit('write', this.address.toString(), entry, this._oplog.heads)
+
+      this.emit('write', this.address.toString(), entry, this._oplog.heads)
       if (onProgressCallback) onProgressCallback(entry)
+
       return entry.hash
     }
   }
@@ -437,7 +426,7 @@ class Store {
 
   _onLoadProgress (hash, entry, progress, total) {
     this._recalculateReplicationStatus(progress, total)
-    this.events.emit('load.progress', this.address.toString(), hash, entry, this.replicationStatus.progress, this.replicationStatus.max)
+    this.emit('load.progress', this.address.toString(), hash, entry, this._replicationStatus.progress, this._replicationStatus.max)
   }
 
   /* Replication Status state updates */

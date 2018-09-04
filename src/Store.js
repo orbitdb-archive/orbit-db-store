@@ -77,6 +77,8 @@ class Store extends EventEmitter {
     this._replicator.on('load.added', this._onLoadAdded.bind(this))
     this._replicator.on('load.progress', this._onReplicatorLoadProgress.bind(this))
     this._replicator.on('load.end', this._onLoadCompleted.bind(this))
+
+    this.emit('initialized', this)
   }
 
   _onReplicatorLoadProgress(id, hash, entry, have, bufferedLength) {

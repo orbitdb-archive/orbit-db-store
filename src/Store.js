@@ -45,13 +45,6 @@ class Store {
     this._ipfs = ipfs
     this._cache = options.cache
 
-    // this._keystore = options.keystore
-    // this._key = options && options.key
-    //   ? options.key
-    //   : this._keystore.getKey(peerId) || this._keystore.createKey(peerId)
-    // // FIX: duck typed interface
-    // this._ipfs.keystore = this._keystore
-
     // Access mapping
     const defaultAccess = {
       canAppend: (entry) => (entry.identity.publicKey === identity.publicKey)

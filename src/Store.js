@@ -145,7 +145,7 @@ class Store {
       await this.options.onClose(this.address.toString())
 
     //Replicator teardown logic
-    this._replicator.stop();
+    this._replicator.stop()
 
     // Reset replication statistics
     this._replicationStatus.reset()
@@ -233,10 +233,10 @@ class Store {
         return Promise.resolve(null)
       }
 
-      // if (!this.access.write.includes(head.key) && !this.access.write.includes('*')) {
-      //   console.warn("Warning: Given input entry is not allowed in this log and was discarded (no write access).")
-      //   return Promise.resolve(null)
-      // }
+      if (!this.access.write.includes(head.key) && !this.access.write.includes('*')) {
+        console.warn("Warning: Given input entry is not allowed in this log and was discarded (no write access).")
+        return Promise.resolve(null)
+      }
 
       // TODO: verify the entry's signature here
 

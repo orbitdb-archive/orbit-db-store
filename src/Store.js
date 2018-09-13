@@ -36,7 +36,6 @@ class Store {
     // Create IDs, names and paths
     this.id = address.toString()
     this.identity = identity
-    this.uid = identity.publicKey
     this.address = address
     this.dbname = address.path || ''
     this.events = new EventEmitter()
@@ -55,7 +54,7 @@ class Store {
     this._oplog = new Log(this._ipfs, this.access, this.identity, this.id)
 
     // Create the index
-    this._index = new this.options.Index(this.uid)
+    this._index = new this.options.Index(this.identity.publicKey)
 
     // Replication progress info
     this._replicationStatus = new ReplicationInfo()
@@ -185,7 +184,7 @@ class Store {
     await this.close()
     await this._cache.destroy()
     // Reset
-    this._index = new this.options.Index(this.uid)
+    this._index = new this.options.Index(this.identity.publicKey)
     this._oplog = new Log(this._ipfs, this.access, this.identity, this.id)
     this._cache = this.options.cache
   }

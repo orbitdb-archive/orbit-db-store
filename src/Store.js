@@ -263,10 +263,23 @@ class Store {
         .then(() => head)
     }
 
-    return mapSeries(heads, saveToIpfs)
+    mapSeries(heads, saveToIpfs)
       .then(async (saved) => {
-          return this._replicator.load(saved.filter(e => e !== null))
+        this._replicator.load(saved.filter(e => e !== null))
       })
+
+    // resolve once heads have been added to the log
+    return new Promise(resolve => {
+      const checkHeadsPresent = () => {
+        const hashes = this._oplog.heads.map(h => h.hash)
+        const remainingHeads = heads.filter(h => !hashes.includes(h.hash))
+        if (remainingHeads.length === 0) {
+          resolve()
+        }
+      }
+      this.events.on('replicated', checkHeadsPresent) // check on `replicated` events
+      checkHeadsPresent() // check if heads are already present
+    })
   }
 
   loadMoreFrom (amount, entries) {

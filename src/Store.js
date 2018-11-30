@@ -263,17 +263,13 @@ class Store {
         .then(() => head)
     }
 
-    await mapSeries(heads, saveToIpfs)
-      .then(async (saved) => {
-        this._replicator.load(saved.filter(e => e !== null))
-      })
+    const saved = await mapSeries(heads, saveToIpfs)
+    await this._replicator.load(saved.filter(e => e !== null))
 
     return new Promise(resolve => {
-      this.events.on('replicate.progress', (_x, _y, _z, progress, have) => {
+      this.events.on('replicate.progress', (address, hash, entry, progress, have) => {
         if (progress === have) {
-          this.events.on('replicated', () => {
-            resolve()
-          })
+          this.events.on('replicated', resolve)
         }
       })
       if (!this._replicator._buffer.length && !Object.values(this._replicator._queue).length) {

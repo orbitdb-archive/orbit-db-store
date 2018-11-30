@@ -219,7 +219,7 @@ class Store {
     this.events.emit('ready', this.address.toString(), this._oplog.heads)
   }
 
-  sync (heads) {
+  async sync (heads) {
     this._stats.syncRequestsReceieved += 1
     logger.debug(`Sync request #${this._stats.syncRequestsReceieved} ${heads.length}`)
 
@@ -263,22 +263,22 @@ class Store {
         .then(() => head)
     }
 
-    mapSeries(heads, saveToIpfs)
+    await mapSeries(heads, saveToIpfs)
       .then(async (saved) => {
         this._replicator.load(saved.filter(e => e !== null))
       })
 
-    // resolve once heads have been added to the log
     return new Promise(resolve => {
-      const checkHeadsPresent = () => {
-        const hashes = this._oplog.heads.map(h => h.hash)
-        const remainingHeads = heads.filter(h => !hashes.includes(h.hash))
-        if (remainingHeads.length === 0) {
-          resolve()
+      this.events.on('replicate.progress', (_x, _y, _z, progress, have) => {
+        if (progress === have) {
+          this.events.on('replicated', () => {
+            resolve()
+          })
         }
+      })
+      if (!this._replicator._buffer.length && !Object.values(this._replicator._queue).length) {
+        resolve()
       }
-      this.events.on('replicated', checkHeadsPresent) // check on `replicated` events
-      checkHeadsPresent() // check if heads are already present
     })
   }
 

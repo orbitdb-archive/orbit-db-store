@@ -128,6 +128,26 @@ class Replicator extends EventEmitter {
       const items = Object.values(this._queue).slice(0, capacity).filter(notNull)
       items.forEach(entry => delete this._queue[entry.hash || entry])
 
+      // If the queue was empty and there no logs being fetched
+      // and no tasks are queued and we've processed as many as requested
+      const hasFinished = () => {
+        return items.length === 0 && 
+          this.tasksRunning === 0 && 
+          this.tasksQueued === 0
+          this.tasksRequested === this.tasksProcessed
+      }
+
+      // Are we done with replication?
+      if (hasFinished()) {
+        // Get the fetched logs that were buffered
+        const logs = this._buffer.slice()
+        this._buffer = []
+        // Finished, push the event to the end of the event loop
+        setTimeout(() => this.emit('ready', logs), 0)
+        // Return early
+        return Promise.resolve()
+      }
+
       const flattenAndGetUniques = (nexts) => nexts.reduce(flatMap, []).reduce(uniqueValues, {})
       const processValues = (nexts) => {
         const values = Object.values(nexts).filter(notNull)

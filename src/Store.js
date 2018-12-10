@@ -119,6 +119,7 @@ class Store {
         }
       }
       this._replicator.on('load.end', onLoadCompleted)
+      this._replicator.on('ready', () => this.events.emit('ready'))
     } catch (e) {
       console.error("Store Error:", e)
     }

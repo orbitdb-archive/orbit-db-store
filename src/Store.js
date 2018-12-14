@@ -22,7 +22,9 @@ const DefaultOptions = {
 }
 
 class Store {
-  constructor (ipfs, peerId, address, options) {
+  constructor (ipfs, identity, address, options) {
+    if(!identity) throw new Error("Identity required")
+
     // Set the options
     let opts = Object.assign({}, DefaultOptions)
     Object.assign(opts, options)
@@ -33,7 +35,7 @@ class Store {
 
     // Create IDs, names and paths
     this.id = address.toString()
-    this.uid = peerId
+    this.identity = identity
     this.address = address
     this.dbname = address.path || ''
     this.events = new EventEmitter()
@@ -42,26 +44,17 @@ class Store {
     this._ipfs = ipfs
     this._cache = options.cache
 
-    this._keystore = options.keystore
-    this._key = options && options.key
-      ? options.key
-      : this._keystore.getKey(peerId) || this._keystore.createKey(peerId)
-    // FIX: duck typed interface
-    this._ipfs.keystore = this._keystore
-
     // Access mapping
     const defaultAccess = {
-      admin: [this._key.getPublic('hex')],
-      read: [], // Not used atm, anyone can read
-      write: [this._key.getPublic('hex')],
+      canAppend: (entry) => (entry.identity.publicKey === identity.publicKey)
     }
     this.access = options.accessController || defaultAccess
 
     // Create the operations log
-    this._oplog = new Log(this._ipfs, this.id, null, null, null, this._key, this.access.write)
+    this._oplog = new Log(this._ipfs, this.access, this.identity, this.id)
 
     // Create the index
-    this._index = new this.options.Index(this.uid)
+    this._index = new this.options.Index(this.identity.publicKey)
 
     // Replication progress info
     this._replicationStatus = new ReplicationInfo()
@@ -151,7 +144,7 @@ class Store {
       await this.options.onClose(this.address.toString())
 
     //Replicator teardown logic
-    this._replicator.stop();
+    this._replicator.stop()
 
     // Reset replication statistics
     this._replicationStatus.reset()
@@ -191,8 +184,8 @@ class Store {
     await this.close()
     await this._cache.destroy()
     // Reset
-    this._index = new this.options.Index(this.uid)
-    this._oplog = new Log(this._ipfs, this.id, null, null, null, this._key, this.access.write)
+    this._index = new this.options.Index(this.identity.publicKey)
+    this._oplog = new Log(this._ipfs, this.access, this.identity, this.id)
     this._cache = this.options.cache
   }
 
@@ -208,7 +201,7 @@ class Store {
 
     await mapSeries(heads, async (head) => {
       this._recalculateReplicationMax(head.clock.time)
-      let log = await Log.fromEntryHash(this._ipfs, head.hash, this._oplog.id, amount, this._oplog.values, this._key, this.access.write, this._onLoadProgress.bind(this))
+      let log = await Log.fromEntryHash(this._ipfs, this.access, this.identity, head.hash, this._oplog.id, amount, this._oplog.values, this._onLoadProgress.bind(this))
       await this._oplog.join(log, amount)
     })
 
@@ -233,34 +226,31 @@ class Store {
     // the log, it'll fetch it from the network instead from the disk.
     // return this._replicator.load(heads)
 
-    const saveToIpfs = (head) => {
+    const saveToIpfs = async (head) => {
       if (!head) {
         console.warn("Warning: Given input entry was 'null'.")
         return Promise.resolve(null)
       }
 
-      if (!this.access.write.includes(head.key) && !this.access.write.includes('*')) {
+      const identityProvider = this.identity.provider
+      if (!identityProvider) throw new Error('Identity-provider is required, cannot verify entry')
+
+      const canAppend = await this.access.canAppend(head, identityProvider)
+      if (!canAppend) {
         console.warn("Warning: Given input entry is not allowed in this log and was discarded (no write access).")
         return Promise.resolve(null)
       }
 
-      // TODO: verify the entry's signature here
-
       const logEntry = Object.assign({}, head)
       logEntry.hash = null
-      return this._ipfs.object.put(Buffer.from(JSON.stringify(logEntry)))
-        .then((dagObj) => dagObj.toJSON().multihash)
-        .then(hash => {
-          // We need to make sure that the head message's hash actually
-          // matches the hash given by IPFS in order to verify that the
-          // message contents are authentic
-          if (hash !== head.hash) {
-            console.warn('"WARNING! Head hash didn\'t match the contents')
-          }
+      const dagObj = await this._ipfs.object.put(Buffer.from(JSON.stringify(logEntry)))
+      const hash = dagObj.toJSON().multihash
 
-          return hash
-        })
-        .then(() => head)
+      if (hash !== head.hash) {
+        console.warn('"WARNING! Head hash didn\'t match the contents')
+      }
+
+      return head
     }
 
     return mapSeries(heads, saveToIpfs)
@@ -397,7 +387,7 @@ class Store {
       const snapshotData = await loadSnapshotData()
       this._recalculateReplicationMax(snapshotData.values.reduce(maxClock, 0))
       if (snapshotData) {
-        const log = await Log.fromJSON(this._ipfs, snapshotData, -1, this._key, this.access.write, 1000, onProgress)
+        const log = await Log.fromJSON(this._ipfs, this.access, this.identity, snapshotData, -1, 1000, onProgress)
         await this._oplog.join(log)
         await this._updateIndex()
         this.events.emit('replicated', this.address.toString())

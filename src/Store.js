@@ -226,34 +226,31 @@ class Store {
     // the log, it'll fetch it from the network instead from the disk.
     // return this._replicator.load(heads)
 
-    const saveToIpfs = (head) => {
+    const saveToIpfs = async (head) => {
       if (!head) {
         console.warn("Warning: Given input entry was 'null'.")
         return Promise.resolve(null)
       }
 
-      if (!this.access.write.includes(head.key) && !this.access.write.includes('*')) {
+      const identityProvider = this.identity.provider
+      if (!identityProvider) throw new Error('Identity-provider is required, cannot verify entry')
+
+      const canAppend = await this.access.canAppend(head, identityProvider)
+      if (!canAppend) {
         console.warn("Warning: Given input entry is not allowed in this log and was discarded (no write access).")
         return Promise.resolve(null)
       }
 
-      // TODO: verify the entry's signature here
-
       const logEntry = Object.assign({}, head)
       logEntry.hash = null
-      return this._ipfs.object.put(Buffer.from(JSON.stringify(logEntry)))
-        .then((dagObj) => dagObj.toJSON().multihash)
-        .then(hash => {
-          // We need to make sure that the head message's hash actually
-          // matches the hash given by IPFS in order to verify that the
-          // message contents are authentic
-          if (hash !== head.hash) {
-            console.warn('"WARNING! Head hash didn\'t match the contents')
-          }
+      const dagObj = await this._ipfs.object.put(Buffer.from(JSON.stringify(logEntry)))
+      const hash = dagObj.toJSON().multihash
 
-          return hash
-        })
-        .then(() => head)
+      if (hash !== head.hash) {
+        console.warn('"WARNING! Head hash didn\'t match the contents')
+      }
+
+      return head
     }
 
     return mapSeries(heads, saveToIpfs)

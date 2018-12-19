@@ -287,8 +287,7 @@ class Store {
 
     snapshotData.values.forEach(addToStream)
     rs.push(null) // tell the stream we're finished
-
-    const snapshot = await this._ipfs.files.add(rs)
+    const snapshot = this._ipfs.files.add ? await this._ipfs.files.add(rs) : await this._ipfs.add(rs)
 
     await this._cache.set('snapshot', snapshot[snapshot.length - 1])
     await this._cache.set('queue', unfinished)
@@ -309,7 +308,7 @@ class Store {
     const snapshot = await this._cache.get('snapshot')
 
     if (snapshot) {
-      const res = await this._ipfs.files.catReadableStream(snapshot.hash)
+      const res = this._ipfs.files.catReadableStream ? await this._ipfs.files.catReadableStream(snapshot.hash) : await this._ipfs.catReadableStream(snapshot.hash)
       const loadSnapshotData = () => {
         return new Promise((resolve, reject) => {
           let buf = new Buffer(0)

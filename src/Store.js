@@ -266,7 +266,7 @@ class Store {
     const unfinished = this._replicator.getQueue()
 
     let snapshotData = this._oplog.toSnapshot()
-    let header = new Buffer(JSON.stringify({
+    let header = Buffer.from(JSON.stringify({
       id: snapshotData.id,
       heads: snapshotData.heads,
       size: snapshotData.values.length,
@@ -274,14 +274,14 @@ class Store {
     }))
     const rs = new Readable()
     let size = new Uint16Array([header.length])
-    let bytes = new Buffer(size.buffer)
+    let bytes = Buffer.from(size.buffer)
     rs.push(bytes)
     rs.push(header)
 
     const addToStream = (val) => {
-      let str = new Buffer(JSON.stringify(val))
+      let str = Buffer.from(JSON.stringify(val))
       let size = new Uint16Array([str.length])
-      rs.push(new Buffer(size.buffer))
+      rs.push(Buffer.from(size.buffer))
       rs.push(str)
     }
 
@@ -311,7 +311,7 @@ class Store {
       const res = this._ipfs.files.catReadableStream ? await this._ipfs.files.catReadableStream(snapshot.hash) : await this._ipfs.catReadableStream(snapshot.hash)
       const loadSnapshotData = () => {
         return new Promise((resolve, reject) => {
-          let buf = new Buffer(0)
+          let buf = Buffer.alloc(0)
           let q = []
 
           const bufferData = (d) => {

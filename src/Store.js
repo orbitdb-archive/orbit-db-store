@@ -7,7 +7,6 @@ const Log = require('ipfs-log')
 const Index = require('./Index')
 const Replicator = require('./Replicator')
 const ReplicationInfo = require('./replication-info')
-
 const Logger = require('logplease')
 const logger = Logger.create("orbit-db.store", { color: Logger.Colors.Blue })
 Logger.setLogLevel('ERROR')
@@ -243,8 +242,8 @@ class Store {
 
       const logEntry = Object.assign({}, head)
       logEntry.hash = null
-      const dagObj = await this._ipfs.object.put(Buffer.from(JSON.stringify(logEntry)))
-      const hash = dagObj.toJSON().multihash
+      const dagObj = await this._ipfs.dag.put(Buffer.from(JSON.stringify(logEntry)))
+      const hash = dagObj.toBaseEncodedString()
 
       if (hash !== head.hash) {
         console.warn('"WARNING! Head hash didn\'t match the contents')

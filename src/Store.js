@@ -9,7 +9,7 @@ const Replicator = require('./Replicator')
 const ReplicationInfo = require('./replication-info')
 
 const Logger = require('logplease')
-const logger = Logger.create("orbit-db.store", { color: Logger.Colors.Blue })
+const logger = Logger.create('orbit-db.store', { color: Logger.Colors.Blue })
 Logger.setLogLevel('ERROR')
 
 const DefaultOptions = {
@@ -18,12 +18,14 @@ const DefaultOptions = {
   path: './orbitdb',
   replicate: true,
   referenceCount: 64,
-  replicationConcurrency: 128,
+  replicationConcurrency: 128
 }
 
 class Store {
   constructor (ipfs, identity, address, options) {
-    if(!identity) throw new Error("Identity required")
+    if (!identity) {
+      throw new Error('Identity required')
+    }
 
     // Set the options
     let opts = Object.assign({}, DefaultOptions)
@@ -62,9 +64,9 @@ class Store {
     // Statistics
     this._stats = {
       snapshot: {
-        bytesLoaded: -1,
+        bytesLoaded: -1
       },
-      syncRequestsReceieved: 0,
+      syncRequestsReceieved: 0
     }
 
     try {
@@ -74,7 +76,7 @@ class Store {
       this._loader = this._replicator
       this._replicator.on('load.added', (entry) => {
         // Update the latest entry state (latest is the entry with largest clock time)
-        this._replicationStatus.queued ++
+        this._replicationStatus.queued++
         this._recalculateReplicationMax(entry.clock ? entry.clock.time : 0)
         // logger.debug(`<replicate>`)
         this.events.emit('replicate', this.address.toString(), entry)
@@ -100,7 +102,7 @@ class Store {
           this._replicationStatus.buffered = this._replicator._buffer.length
           await this._updateIndex()
 
-          //only store heads that has been verified and merges
+          // only store heads that has been verified and merges
           const heads = this._oplog.heads
           await this._cache.set('_remoteHeads', heads)
           logger.debug(`Saved heads ${heads.length} [${heads.map(e => e.hash).join(', ')}]`)
@@ -113,7 +115,7 @@ class Store {
       }
       this._replicator.on('load.end', onLoadCompleted)
     } catch (e) {
-      console.error("Store Error:", e)
+      console.error('Store Error:', e)
     }
   }
 
@@ -140,10 +142,11 @@ class Store {
   }
 
   async close () {
-    if (this.options.onClose)
+    if (this.options.onClose) {
       await this.options.onClose(this.address.toString())
+    }
 
-    //Replicator teardown logic
+    // Replicator teardown logic
     this._replicator.stop()
 
     // Reset replication statistics
@@ -152,9 +155,9 @@ class Store {
     // Reset database statistics
     this._stats = {
       snapshot: {
-        bytesLoaded: -1,
+        bytesLoaded: -1
       },
-      syncRequestsReceieved: 0,
+      syncRequestsReceieved: 0
     }
 
     // Remove all event listeners
@@ -196,8 +199,9 @@ class Store {
     const remoteHeads = await this._cache.get('_remoteHeads') || []
     const heads = localHeads.concat(remoteHeads)
 
-    if (heads.length > 0)
+    if (heads.length > 0) {
       this.events.emit('load', this.address.toString(), heads)
+    }
 
     await mapSeries(heads, async (head) => {
       this._recalculateReplicationMax(head.clock.time)
@@ -206,8 +210,9 @@ class Store {
     })
 
     // Update the index
-    if (heads.length > 0)
+    if (heads.length > 0) {
       await this._updateIndex()
+    }
 
     this.events.emit('ready', this.address.toString(), this._oplog.heads)
   }
@@ -216,8 +221,9 @@ class Store {
     this._stats.syncRequestsReceieved += 1
     logger.debug(`Sync request #${this._stats.syncRequestsReceieved} ${heads.length}`)
 
-    if (heads.length === 0)
+    if (heads.length === 0) {
       return
+    }
 
     // To simulate network latency, uncomment this line
     // and comment out the rest of the function
@@ -237,7 +243,7 @@ class Store {
 
       const canAppend = await this.access.canAppend(head, identityProvider)
       if (!canAppend) {
-        console.warn("Warning: Given input entry is not allowed in this log and was discarded (no write access).")
+        console.warn('Warning: Given input entry is not allowed in this log and was discarded (no write access).')
         return Promise.resolve(null)
       }
 
@@ -255,7 +261,7 @@ class Store {
 
     return mapSeries(heads, saveToIpfs)
       .then(async (saved) => {
-          return this._replicator.load(saved.filter(e => e !== null))
+        return this._replicator.load(saved.filter(e => e !== null))
       })
   }
 
@@ -267,22 +273,22 @@ class Store {
     const unfinished = this._replicator.getQueue()
 
     let snapshotData = this._oplog.toSnapshot()
-    let header = new Buffer(JSON.stringify({
+    let header = Buffer.from(JSON.stringify({
       id: snapshotData.id,
       heads: snapshotData.heads,
       size: snapshotData.values.length,
-      type: this.type,
+      type: this.type
     }))
     const rs = new Readable()
     let size = new Uint16Array([header.length])
-    let bytes = new Buffer(size.buffer)
+    let bytes = Buffer.from(size.buffer)
     rs.push(bytes)
     rs.push(header)
 
     const addToStream = (val) => {
-      let str = new Buffer(JSON.stringify(val))
+      let str = Buffer.from(JSON.stringify(val))
       let size = new Uint16Array([str.length])
-      rs.push(new Buffer(size.buffer))
+      rs.push(Buffer.from(size.buffer))
       rs.push(str)
     }
 
@@ -313,7 +319,7 @@ class Store {
       const res = await this._ipfs.files.catReadableStream(snapshot.hash)
       const loadSnapshotData = () => {
         return new Promise((resolve, reject) => {
-          let buf = new Buffer(0)
+          let buf = Buffer.alloc(0)
           let q = []
 
           const bufferData = (d) => {
@@ -419,7 +425,7 @@ class Store {
   }
 
   _addOperationBatch (data, batchOperation, lastOperation, onProgressCallback) {
-    throw new Error("Not implemented!")
+    throw new Error('Not implemented!')
   }
 
   _onLoadProgress (hash, entry, progress, total) {
@@ -433,7 +439,7 @@ class Store {
     this._replicationStatus.progress = Math.max.apply(null, [
       this._replicationStatus.progress,
       this._oplog.length,
-      max || 0,
+      max || 0
     ])
     this._recalculateReplicationMax(this.replicationStatus.progress)
   }
@@ -442,7 +448,7 @@ class Store {
     this._replicationStatus.max = Math.max.apply(null, [
       this._replicationStatus.max,
       this._oplog.length,
-      max || 0,
+      max || 0
     ])
   }
 

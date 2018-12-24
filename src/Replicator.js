@@ -3,7 +3,7 @@ const pMap = require('p-map')
 const Log = require('ipfs-log')
 
 const Logger = require('logplease')
-const logger = Logger.create("replicator", { color: Logger.Colors.Cyan })
+const logger = Logger.create('replicator', { color: Logger.Colors.Cyan })
 Logger.setLogLevel('ERROR')
 
 const getNext = e => e.next
@@ -24,7 +24,7 @@ class Replicator extends EventEmitter {
     this._stats = {
       tasksRequested: 0,
       tasksStarted: 0,
-      tasksProcessed: 0,
+      tasksProcessed: 0
     }
     this._buffer = []
 
@@ -35,7 +35,7 @@ class Replicator extends EventEmitter {
     // Flush the queue as an emergency switch
     this._flushTimer = setInterval(() => {
       if (this.tasksRunning === 0 && Object.keys(this._queue).length > 0) {
-        logger.warn("Had to flush the queue!", Object.keys(this._queue).length, "items in the queue, ", this.tasksRequested, this.tasksFinished, " tasks requested/finished")
+        logger.warn('Had to flush the queue!', Object.keys(this._queue).length, 'items in the queue, ', this.tasksRequested, this.tasksFinished, ' tasks requested/finished')
         setTimeout(() => this._processQueue(), 0)
       }
     }, 3000)
@@ -107,16 +107,17 @@ class Replicator extends EventEmitter {
     }
   }
 
-  stop() {
-    //Clears the queue flusher
+  stop () {
+    // Clears the queue flusher
     clearInterval(this._flushTimer)
   }
 
   _addToQueue (entry) {
     const hash = entry.hash || entry
 
-    if (this._store._oplog.has(hash) || this._fetching[hash] || this._queue[hash])
+    if (this._store._oplog.has(hash) || this._fetching[hash] || this._queue[hash]) {
       return
+    }
 
     this._stats.tasksRequested += 1
     this._queue[hash] = entry
@@ -132,15 +133,16 @@ class Replicator extends EventEmitter {
       const processValues = (nexts) => {
         const values = Object.values(nexts).filter(notNull)
 
-        if ((items.length > 0 && this._buffer.length > 0)
-          || (this.tasksRunning === 0 && this._buffer.length > 0)) {
-            const logs = this._buffer.slice()
-            this._buffer = []
-            this.emit('load.end', logs)
+        if ((items.length > 0 && this._buffer.length > 0) ||
+        (this.tasksRunning === 0 && this._buffer.length > 0)) {
+          const logs = this._buffer.slice()
+          this._buffer = []
+          this.emit('load.end', logs)
         }
 
-        if (values.length > 0)
+        if (values.length > 0) {
           this.load(values)
+        }
       }
 
       return pMap(items, e => this._processOne(e))
@@ -152,8 +154,9 @@ class Replicator extends EventEmitter {
   async _processOne (entry) {
     const hash = entry.hash || entry
 
-    if (this._store._oplog.has(hash) || this._fetching[hash])
+    if (this._store._oplog.has(hash) || this._fetching[hash]) {
       return
+    }
 
     this._fetching[hash] = hash
     this.emit('load.added', entry)

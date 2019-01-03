@@ -8,8 +8,23 @@ const Index = require('./Index')
 const Replicator = require('./Replicator')
 const ReplicationInfo = require('./replication-info')
 const Logger = require('logplease')
+const { DAGNode, util } = require('ipld-dag-pb')
 const logger = Logger.create("orbit-db.store", { color: Logger.Colors.Blue })
 Logger.setLogLevel('ERROR')
+
+const getDagPBCid = async (data) => new Promise((resolve, reject) => {
+  DAGNode.create(data, (err, node) => {
+    if (err) {
+      reject(err)
+    }
+    util.cid(node, (err, c) => {
+      if (err) {
+        reject(err)
+      }
+      resolve(c)
+    })
+  })
+})
 
 const DefaultOptions = {
   Index: Index,
@@ -242,9 +257,19 @@ class Store {
 
       const logEntry = Object.assign({}, head)
       logEntry.hash = null
-      const dagObj = await this._ipfs.dag.put(Buffer.from(JSON.stringify(logEntry)))
-      const hash = dagObj.toBaseEncodedString()
 
+      let cid
+      switch (logEntry.v) {
+        case 0:
+          cid = await getDagPBCid(JSON.stringify(logEntry))
+          break
+        case 1:
+          cid = await this._ipfs.dag.put(Buffer.from(JSON.stringify(logEntry)), { hashOnly: true })
+          break
+        default:
+          throw new Error(`Log version ${logEntry.v} does not exist`)
+      }
+      const hash = cid.toBaseEncodedString()
       if (hash !== head.hash) {
         console.warn('"WARNING! Head hash didn\'t match the contents')
       }

@@ -4,7 +4,8 @@
   "description": "Base class for orbit-db data stores",
   "main": "src/Store.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "lint": "standard"
   },
   "repository": {
     "type": "git",
@@ -16,9 +17,17 @@
   "author": "Haad",
   "license": "MIT",
   "dependencies": {
-    "ipfs-log": "~4.1.0",
+    "ipfs-log": "github:orbitdb/ipfs-log",
     "logplease": "^1.2.14",
     "p-each-series": "^1.0.0",
     "readable-stream": "~2.3.5"
+  },
+  "standard": {
+    "env": [
+      "mocha"
+    ]
+  },
+  "devDependencies": {
+    "standard": "^12.0.1"
   }
 }

@@ -198,4 +198,4 @@ See [orbit-db's contributing guideline](https://github.com/orbitdb/orbit-db#cont
 
 ## License
 
-[MIT](LICENSE) ©️ 2016 Haadcode
+[MIT](LICENSE) ©️ 2016-2018 Protocol Labs Inc., Haja Networks Oy

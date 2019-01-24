@@ -17,7 +17,7 @@
   "author": "Haad",
   "license": "MIT",
   "dependencies": {
-    "ipfs-log": "github:orbitdb/ipfs-log#1d567b5c55bd0a326e653b7865c111fa424290c5",
+    "ipfs-log": "github:orbitdb/ipfs-log#stable/ipfs@0.33.x",
     "logplease": "^1.2.14",
     "p-each-series": "^1.0.0",
     "readable-stream": "~2.3.5"

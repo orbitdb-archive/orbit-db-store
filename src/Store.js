@@ -11,11 +11,13 @@ const ReplicationInfo = require('./replication-info')
 const Logger = require('logplease')
 const logger = Logger.create('orbit-db.store', { color: Logger.Colors.Blue })
 Logger.setLogLevel('ERROR')
+const dagNode = require('orbit-db-io')
+const getCidProp = (entry) => entry.v === 0 ? 'hash' : 'cid'
 
 const DefaultOptions = {
   Index: Index,
   maxHistory: -1,
-  path: './orbitdb',
+  directory: './orbitdb',
   replicate: true,
   referenceCount: 64,
   replicationConcurrency: 128
@@ -53,7 +55,7 @@ class Store {
     this.access = options.accessController || defaultAccess
 
     // Create the operations log
-    this._oplog = new Log(this._ipfs, this.access, this.identity, this.id)
+    this._oplog = new Log(this._ipfs, this.identity, { logId: this.id, access: this.access })
 
     // Create the index
     this._index = new this.options.Index(this.identity.publicKey)
@@ -81,7 +83,7 @@ class Store {
         // logger.debug(`<replicate>`)
         this.events.emit('replicate', this.address.toString(), entry)
       })
-      this._replicator.on('load.progress', (id, hash, entry, have, bufferedLength) => {
+      this._replicator.on('load.progress', (id, cid, entry, have, bufferedLength) => {
         if (this._replicationStatus.buffered > bufferedLength) {
           this._recalculateReplicationProgress(this.replicationStatus.progress + bufferedLength)
         } else {
@@ -90,7 +92,7 @@ class Store {
         this._replicationStatus.buffered = bufferedLength
         this._recalculateReplicationMax(this.replicationStatus.progress)
         // logger.debug(`<replicate.progress>`)
-        this.events.emit('replicate.progress', this.address.toString(), hash, entry, this.replicationStatus.progress, this.replicationStatus.max)
+        this.events.emit('replicate.progress', this.address.toString(), cid, entry, this.replicationStatus.progress, this.replicationStatus.max)
       })
 
       const onLoadCompleted = async (logs, have) => {
@@ -105,7 +107,7 @@ class Store {
           // only store heads that has been verified and merges
           const heads = this._oplog.heads
           await this._cache.set('_remoteHeads', heads)
-          logger.debug(`Saved heads ${heads.length} [${heads.map(e => e.hash).join(', ')}]`)
+          logger.debug(`Saved heads ${heads.length} [${heads.map(e => e.cid).join(', ')}]`)
 
           // logger.debug(`<replicated>`)
           this.events.emit('replicated', this.address.toString(), logs.length)
@@ -188,12 +190,13 @@ class Store {
     await this._cache.destroy()
     // Reset
     this._index = new this.options.Index(this.identity.publicKey)
-    this._oplog = new Log(this._ipfs, this.access, this.identity, this.id)
+    this._oplog = new Log(this._ipfs, this.identity, { logId: this.id, access: this.access })
     this._cache = this.options.cache
   }
 
   async load (amount) {
     amount = amount || this.options.maxHistory
+
 
     const localHeads = await this._cache.get('_localHeads') || []
     const remoteHeads = await this._cache.get('_remoteHeads') || []
@@ -205,7 +208,7 @@ class Store {
 
     await mapSeries(heads, async (head) => {
       this._recalculateReplicationMax(head.clock.time)
-      let log = await Log.fromEntryHash(this._ipfs, this.access, this.identity, head.hash, this._oplog.id, amount, this._oplog.values, this._onLoadProgress.bind(this))
+      let log = await Log.fromEntryCid(this._ipfs, this.identity, head.cid, { logId: this._oplog.id, access: this.access, length: amount, exclude: this._oplog.values, onProgressCallback:  this._onLoadProgress.bind(this) })
       await this._oplog.join(log, amount)
     })
 
@@ -220,7 +223,6 @@ class Store {
   sync (heads) {
     this._stats.syncRequestsReceieved += 1
     logger.debug(`Sync request #${this._stats.syncRequestsReceieved} ${heads.length}`)
-
     if (heads.length === 0) {
       return
     }
@@ -248,12 +250,12 @@ class Store {
       }
 
       const logEntry = Object.assign({}, head)
-      logEntry.hash = null
-      const dagObj = await this._ipfs.object.put(Buffer.from(JSON.stringify(logEntry)))
-      const hash = dagObj.toJSON().multihash
+      logEntry[getCidProp(logEntry)] = null
+      const codec = logEntry.v === 0 ? 'dag-pb' : 'dag-cbor'
+      const cid = await dagNode.write(this._ipfs, codec, logEntry, { links: ['next'], onlyHash: true })
 
-      if (hash !== head.hash) {
-        console.warn('"WARNING! Head hash didn\'t match the contents')
+      if (cid !== head[getCidProp(head)]) {
+        console.warn('"WARNING! Head cid didn\'t match the contents')
       }
 
       return head
@@ -295,12 +297,12 @@ class Store {
     snapshotData.values.forEach(addToStream)
     rs.push(null) // tell the stream we're finished
 
-    const snapshot = await this._ipfs.files.add(rs)
+    const snapshot = this._ipfs.files.add ? await this._ipfs.files.add(rs) : await this._ipfs.add(rs)
 
     await this._cache.set('snapshot', snapshot[snapshot.length - 1])
     await this._cache.set('queue', unfinished)
 
-    logger.debug(`Saved snapshot: ${snapshot[snapshot.length - 1].hash}, queue length: ${unfinished.length}`)
+    logger.debug(`Saved snapshot: ${snapshot[snapshot.length - 1].cid}, queue length: ${unfinished.length}`)
 
     return snapshot
   }
@@ -316,7 +318,7 @@ class Store {
     const snapshot = await this._cache.get('snapshot')
 
     if (snapshot) {
-      const res = await this._ipfs.files.catReadableStream(snapshot.hash)
+      const res = this._ipfs.files.catReadableStream ? await this._ipfs.files.catReadableStream(snapshot.hash) : await this._ipfs.catReadableStream(snapshot.hash)
       const loadSnapshotData = () => {
         return new Promise((resolve, reject) => {
           let buf = Buffer.alloc(0)
@@ -383,9 +385,9 @@ class Store {
         })
       }
 
-      const onProgress = (hash, entry, count, total) => {
+      const onProgress = (cid, entry, count, total) => {
         this._recalculateReplicationStatus(count, entry.clock.time)
-        this._onLoadProgress(hash, entry)
+        this._onLoadProgress(cid, entry)
       }
 
       // Fetch the entries
@@ -393,7 +395,7 @@ class Store {
       const snapshotData = await loadSnapshotData()
       this._recalculateReplicationMax(snapshotData.values.reduce(maxClock, 0))
       if (snapshotData) {
-        const log = await Log.fromJSON(this._ipfs, this.access, this.identity, snapshotData, -1, 1000, onProgress)
+        const log = await Log.fromJSON(this._ipfs, this.identity, snapshotData, { access: this.access, length: -1, timeout: 1000, onProgressCallback: onProgress })
         await this._oplog.join(log)
         await this._updateIndex()
         this.events.emit('replicated', this.address.toString())
@@ -420,7 +422,7 @@ class Store {
       await this._updateIndex()
       this.events.emit('write', this.address.toString(), entry, this._oplog.heads)
       if (onProgressCallback) onProgressCallback(entry)
-      return entry.hash
+      return entry.cid
     }
   }
 
@@ -428,9 +430,9 @@ class Store {
     throw new Error('Not implemented!')
   }
 
-  _onLoadProgress (hash, entry, progress, total) {
+  _onLoadProgress (cid, entry, progress, total) {
     this._recalculateReplicationStatus(progress, total)
-    this.events.emit('load.progress', this.address.toString(), hash, entry, this.replicationStatus.progress, this.replicationStatus.max)
+    this.events.emit('load.progress', this.address.toString(), cid, entry, this.replicationStatus.progress, this.replicationStatus.max)
   }
 
   /* Replication Status state updates */

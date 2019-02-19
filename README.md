@@ -50,16 +50,16 @@ Sync this database with entries from *heads* where *heads* is an array of ipfs-l
 Get the address of this database. Returns an object `{ root: <manifestHash>, path: <path> }`. Convert to a string with `db.address.toString()`.
 
 ```javascript
-console.log(db.address)
-// /orbitdb/Qmd8TmZrWASypEp4Er9tgWP4kCNQnW4ncSnvjvyHQ3EVSU/databaseName
+console.log(db.address.toString())
+// /orbitdb/zdpuB383kQWjyCd5nv4FKqZwe2FH4nqxBBE7kzoDrmdtZ6GPu/databaseName
 ```
 
-##### `key`
+##### `identity`
 
-Key pair used with this store to sign and access entries. This key is the peer/node/user key.
+Each store has an `identity` property containing the public key used with this store to sign and access entries. This `publicKey` property of `identity` is the peer/node/user key.
 
 ```javascript
-console.log(db.key.toPublic('hex'))
+console.log(db.identity.publicKey)
 // 042c07044e7ea51a489c02854db5e09f0191690dc59db0afd95328c9db614a2976e088cab7c86d7e48183191258fc59dc699653508ce25bf0369d67f33d5d77839
 ```
 
@@ -86,7 +86,7 @@ console.log(db.replicationStatus)
 
   - `load` - (dbname, hash)
 
-    Emitted before loading the database history. *hash* is the hash from which the history is loaded from.
+    Emitted before loading the database history. *hash* is the hash from which the history is loaded.
 
     ```javascript
     db.events.on('load', (id, hash) => ... )
@@ -109,7 +109,7 @@ console.log(db.replicationStatus)
     *Progress* is the current load count. *Total* is the maximum load count (ie. length of the full database). These are useful eg. for displaying a load progress percentage.
 
     ```javascript
-    db.events.on('load', (id, hash, entry, progress, total) => ... )
+    db.events.on('load.progress', (id, hash, entry, progress, total) => ... )
     db.load()
     ```
 
@@ -118,7 +118,7 @@ console.log(db.replicationStatus)
     Emitted after the database was synced with an update from a peer database.
 
     ```javascript
-    db.events.on('replicated', (id) => ... )
+    db.events.on('replicated', (id, length) => ... )
     ```
 
   - `write` - (id, hash, entry)
@@ -144,7 +144,7 @@ this._addOperation({
 ```
 
 ### Creating Custom Data Stores
-You can create a custom data stores that stores data in a way you need it to. To do this, you need to import `orbit-db-store` to your custom store and extend your store ckass from orbit-db-store's `Store`. Below is the `orbit-db-kvstore` which is a custom data store for `orbit-db`.
+You can create a custom data stores that stores data in a way you need it to. To do this, you need to import `orbit-db-store` to your custom store and extend your store class from orbit-db-store's `Store`. Below is the `orbit-db-kvstore` which is a custom data store for `orbit-db`.
 
 *TODO: describe indices and how they work*
 
@@ -153,9 +153,9 @@ const Store         = require('orbit-db-store');
 const KeyValueIndex = require('./KeyValueIndex');
 
 class KeyValueStore extends Store {
-  constructor(ipfs, id, dbname, options) {
+  constructor(ipfs, identity, dbname, options) {
     Object.assign(options || {}, { Index: KeyValueIndex });
-    super(ipfs, id, dbname, options)
+    super(ipfs, identity, dbname, options)
   }
 
   get(key) {

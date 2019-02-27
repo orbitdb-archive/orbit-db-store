@@ -94,7 +94,10 @@ class Replicator extends EventEmitter {
     Process new heads.
    */
   load (entries) {
-    const notKnown = entry => !this._store._oplog.has(entry[getCidProp(entry)] || entry) && !this._queue[entry[getCidProp(entry)] || entry]
+    const notKnown = entry => {
+      const cid = entry[getCidProp(entry)] || entry
+      return !this._store._oplog.has(cid) && !this._fetching[cid] && !this._queue[cid]
+    }
 
     try {
       entries
@@ -115,11 +118,6 @@ class Replicator extends EventEmitter {
 
   _addToQueue (entry) {
     const cid = entry[getCidProp(entry)] || entry
-
-    if (this._store._oplog.has(cid) || this._fetching[cid] || this._queue[cid]) {
-      return
-    }
-
     this._stats.tasksRequested += 1
     this._queue[cid] = entry
   }

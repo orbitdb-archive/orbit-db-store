@@ -107,7 +107,7 @@ class Store {
           // only store heads that has been verified and merges
           const heads = this._oplog.heads
           await this._cache.set('_remoteHeads', heads)
-          logger.debug(`Saved heads ${heads.length} [${heads.map(e => e.cid).join(', ')}]`)
+          logger.debug(`Saved heads ${heads.length} [${heads.map(e => e[getCidProp(e)]).join(', ')}]`)
 
           // logger.debug(`<replicated>`)
           this.events.emit('replicated', this.address.toString(), logs.length)
@@ -208,7 +208,7 @@ class Store {
 
     await mapSeries(heads, async (head) => {
       this._recalculateReplicationMax(head.clock.time)
-      let log = await Log.fromEntryCid(this._ipfs, this.identity, head.cid, { logId: this._oplog.id, access: this.access, length: amount, exclude: this._oplog.values, onProgressCallback:  this._onLoadProgress.bind(this) })
+      let log = await Log.fromEntryCid(this._ipfs, this.identity, head[getCidProp(head)], { logId: this._oplog.id, access: this.access, length: amount, exclude: this._oplog.values, onProgressCallback:  this._onLoadProgress.bind(this) })
       await this._oplog.join(log, amount)
     })
 
@@ -302,7 +302,7 @@ class Store {
     await this._cache.set('snapshot', snapshot[snapshot.length - 1])
     await this._cache.set('queue', unfinished)
 
-    logger.debug(`Saved snapshot: ${snapshot[snapshot.length - 1].cid}, queue length: ${unfinished.length}`)
+    logger.debug(`Saved snapshot: ${snapshot[snapshot.length - 1].hash}, queue length: ${unfinished.length}`)
 
     return snapshot
   }

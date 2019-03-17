@@ -65,7 +65,7 @@ console.log(db.identity.publicKey)
 
 ##### `type`
 
-Remove all items from the local store. This doesn't remove or delete any entries in the distributed operations log.
+The type of datastore model of the current instance.
 
 ```javascript
 console.log(db.type) // "eventlog"

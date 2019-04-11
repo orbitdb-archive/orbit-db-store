@@ -7,7 +7,6 @@ const Log = require('ipfs-log')
 const Index = require('./Index')
 const Replicator = require('./Replicator')
 const ReplicationInfo = require('./replication-info')
-
 const Logger = require('logplease')
 const logger = Logger.create('orbit-db.store', { color: Logger.Colors.Blue })
 Logger.setLogLevel('ERROR')

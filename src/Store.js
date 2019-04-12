@@ -122,9 +122,7 @@ class Store {
   }
 
   get all () {
-    return Array.isArray(this._index._index)
-      ? this._index._index
-      : Object.keys(this._index._index).map(e => this._index._index[e])
+    return this._index._index
   }
 
   get type () {

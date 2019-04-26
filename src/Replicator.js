@@ -6,7 +6,6 @@ const Logger = require('logplease')
 const logger = Logger.create('replicator', { color: Logger.Colors.Cyan })
 Logger.setLogLevel('ERROR')
 
-const getCidProp = (entry) => entry.v === 0 ? 'hash' : 'cid'
 const getNext = e => e.next
 const flatMap = (res, val) => res.concat(val)
 const notNull = entry => entry !== null && entry !== undefined
@@ -95,8 +94,8 @@ class Replicator extends EventEmitter {
    */
   load (entries) {
     const notKnown = entry => {
-      const cid = entry[getCidProp(entry)] || entry
-      return !this._store._oplog.has(cid) && !this._fetching[cid] && !this._queue[cid]
+      const hash = entry.hash || entry
+      return !this._store._oplog.has(hash) && !this._fetching[hash] && !this._queue[hash]
     }
 
     try {
@@ -117,16 +116,16 @@ class Replicator extends EventEmitter {
   }
 
   _addToQueue (entry) {
-    const cid = entry[getCidProp(entry)] || entry
+    const hash = entry.hash || entry
     this._stats.tasksRequested += 1
-    this._queue[cid] = entry
+    this._queue[hash] = entry
   }
 
   async _processQueue () {
     if (this.tasksRunning < this._concurrency) {
       const capacity = this._concurrency - this.tasksRunning
       const items = Object.values(this._queue).slice(0, capacity).filter(notNull)
-      items.forEach(entry => delete this._queue[entry.cid || entry])
+      items.forEach(entry => delete this._queue[entry.hash || entry])
 
       const flattenAndGetUniques = (nexts) => nexts.reduce(flatMap, []).reduce(uniqueValues, {})
       const processValues = (nexts) => {
@@ -151,28 +150,28 @@ class Replicator extends EventEmitter {
   }
 
   async _processOne (entry) {
-    const cid = entry[getCidProp(entry)] || entry
+    const hash = entry.hash || entry
 
-    if (this._store._oplog.has(cid) || this._fetching[cid]) {
+    if (this._store._oplog.has(hash) || this._fetching[hash]) {
       return
     }
 
-    this._fetching[cid] = cid
+    this._fetching[hash] = hash
     this.emit('load.added', entry)
     this._stats.tasksStarted += 1
 
     const exclude = []
-    const log = await Log.fromEntryCid(this._store._ipfs, this._store.identity, cid, { logId: this._store._oplog.id, access: this._store.access, length: batchSize, exclude })
+    const log = await Log.fromEntryHash(this._store._ipfs, this._store.identity, hash, { logId: this._store._oplog.id, access: this._store.access, length: batchSize, exclude })
     this._buffer.push(log)
 
     const latest = log.values[0]
-    delete this._queue[cid]
+    delete this._queue[hash]
 
     // Mark this task as processed
     this._stats.tasksProcessed += 1
 
     // Notify subscribers that we made progress
-    this.emit('load.progress', this._id, cid, latest, null, this._buffer.length)
+    this.emit('load.progress', this._id, hash, latest, null, this._buffer.length)
 
     // Return all next pointers
     return log.values.map(getNext).reduce(flatMap, [])

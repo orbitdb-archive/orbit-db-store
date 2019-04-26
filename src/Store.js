@@ -12,7 +12,6 @@ const Logger = require('logplease')
 const logger = Logger.create('orbit-db.store', { color: Logger.Colors.Blue })
 Logger.setLogLevel('ERROR')
 const dagNode = require('orbit-db-io')
-const getCidProp = (entry) => entry.v === 0 ? 'hash' : 'cid'
 
 const DefaultOptions = {
   Index: Index,
@@ -83,7 +82,7 @@ class Store {
         // logger.debug(`<replicate>`)
         this.events.emit('replicate', this.address.toString(), entry)
       })
-      this._replicator.on('load.progress', (id, cid, entry, have, bufferedLength) => {
+      this._replicator.on('load.progress', (id, hash, entry, have, bufferedLength) => {
         if (this._replicationStatus.buffered > bufferedLength) {
           this._recalculateReplicationProgress(this.replicationStatus.progress + bufferedLength)
         } else {
@@ -92,7 +91,7 @@ class Store {
         this._replicationStatus.buffered = bufferedLength
         this._recalculateReplicationMax(this.replicationStatus.progress)
         // logger.debug(`<replicate.progress>`)
-        this.events.emit('replicate.progress', this.address.toString(), cid, entry, this.replicationStatus.progress, this.replicationStatus.max)
+        this.events.emit('replicate.progress', this.address.toString(), hash, entry, this.replicationStatus.progress, this.replicationStatus.max)
       })
 
       const onLoadCompleted = async (logs, have) => {
@@ -107,7 +106,7 @@ class Store {
           // only store heads that has been verified and merges
           const heads = this._oplog.heads
           await this._cache.set('_remoteHeads', heads)
-          logger.debug(`Saved heads ${heads.length} [${heads.map(e => e[getCidProp(e)]).join(', ')}]`)
+          logger.debug(`Saved heads ${heads.length} [${heads.map(e => e.hash).join(', ')}]`)
 
           // logger.debug(`<replicated>`)
           this.events.emit('replicated', this.address.toString(), logs.length)
@@ -212,7 +211,7 @@ class Store {
 
     await mapSeries(heads, async (head) => {
       this._recalculateReplicationMax(head.clock.time)
-      let log = await Log.fromEntryCid(this._ipfs, this.identity, head[getCidProp(head)], { logId: this._oplog.id, access: this.access, length: amount, exclude: this._oplog.values, onProgressCallback:  this._onLoadProgress.bind(this) })
+      let log = await Log.fromEntryHash(this._ipfs, this.identity, head.hash, { logId: this._oplog.id, access: this.access, length: amount, exclude: this._oplog.values, onProgressCallback:  this._onLoadProgress.bind(this) })
       await this._oplog.join(log, amount)
     })
 
@@ -254,12 +253,12 @@ class Store {
       }
 
       const logEntry = Object.assign({}, head)
-      logEntry[getCidProp(logEntry)] = null
+      logEntry.hash = null
       const codec = logEntry.v === 0 ? 'dag-pb' : 'dag-cbor'
-      const cid = await dagNode.write(this._ipfs, codec, logEntry, { links: ['next'], onlyHash: true })
+      const hash = await dagNode.write(this._ipfs, codec, logEntry, { links: ['next'], onlyHash: true })
 
-      if (cid !== head[getCidProp(head)]) {
-        console.warn('"WARNING! Head cid didn\'t match the contents')
+      if (hash !== head.hash) {
+        console.warn('"WARNING! Head hash didn\'t match the contents')
       }
 
       return head
@@ -389,9 +388,9 @@ class Store {
         })
       }
 
-      const onProgress = (cid, entry, count, total) => {
+      const onProgress = (hash, entry, count, total) => {
         this._recalculateReplicationStatus(count, entry.clock.time)
-        this._onLoadProgress(cid, entry)
+        this._onLoadProgress(hash, entry)
       }
 
       // Fetch the entries
@@ -426,7 +425,7 @@ class Store {
       await this._updateIndex()
       this.events.emit('write', this.address.toString(), entry, this._oplog.heads)
       if (onProgressCallback) onProgressCallback(entry)
-      return entry.cid
+      return entry.hash
     }
   }
 
@@ -434,9 +433,9 @@ class Store {
     throw new Error('Not implemented!')
   }
 
-  _onLoadProgress (cid, entry, progress, total) {
+  _onLoadProgress (hash, entry, progress, total) {
     this._recalculateReplicationStatus(progress, total)
-    this.events.emit('load.progress', this.address.toString(), cid, entry, this.replicationStatus.progress, this.replicationStatus.max)
+    this.events.emit('load.progress', this.address.toString(), hash, entry, this.replicationStatus.progress, this.replicationStatus.max)
   }
 
   /* Replication Status state updates */

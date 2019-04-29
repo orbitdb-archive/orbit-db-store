@@ -127,6 +127,10 @@ class Store {
       : Object.keys(this._index._index).map(e => this._index._index[e])
   }
 
+  get index () {
+    return this._index._index
+  }
+
   get type () {
     return this._type
   }

@@ -1,6 +1,6 @@
 {
   "name": "orbit-db-store",
-  "version": "2.5.3",
+  "version": "2.5.4",
   "description": "Base class for orbit-db data stores",
   "main": "src/Store.js",
   "scripts": {
@@ -16,7 +16,7 @@
   "author": "Haad",
   "license": "MIT",
   "dependencies": {
-    "ipfs-log": "~4.1.0",
+    "ipfs-log": "orbitdb/ipfs-log#patch/4.2.1-2",
     "logplease": "^1.2.14",
     "p-each-series": "^1.0.0",
     "readable-stream": "~2.3.5"

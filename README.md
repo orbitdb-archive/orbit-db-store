@@ -164,7 +164,7 @@ console.log(db.replicationStatus)
 
   - `load` - (address, heads)
 
-    Emitted before loading the database history. **address** is a string of the OrbitDB address being loaded. **heads** is an array of ipfs-log Entries from which the history is loaded.
+    Emitted before loading the database history. **address** is a string of the OrbitDB address being loaded. **heads** is an array of ipfs-log Entries from which the history is loaded from. **heads** is omitted when this event is emitted as a result of `loadFromSnapshot`.
 
     ```javascript
     db.events.on('load', (address, heads) => ... )
@@ -205,12 +205,12 @@ console.log(db.replicationStatus)
     db.events.on('replicate.progress', (address, hash, entry, progress, total) => ... )
     ```
 
-  - `replicated` - (address, logCount)
+  - `replicated` - (address, count)
 
-    Emitted after the database was synced with an update from a peer database. **address** is a string of the OrbitDB address that emitted the event. **logCount** ...
+    Emitted after the database was synced with an update from a peer database. **address** is a string of the OrbitDB address that emitted the event. **count** number of items replicated. **count** is omitted when this event is emitted as a result of `loadFromSnapshot`.
 
     ```javascript
-    db.events.on('replicated', (address, logCount) => ... )
+    db.events.on('replicated', (address, count) => ... )
     ```
 
   - `write` - (address, entry, heads)

@@ -46,23 +46,21 @@ Base class for [orbit-db](https://github.com/orbitdb/orbit-db) data stores. You 
 
 ## API
 
-### constructor(ipfs, peerId, address, options)
+### constructor(ipfs, identity, address, options)
 
-**ipfs** can be an [IPFS](https://github.com/ipfs/js-ipfs) instance or an [IPFS-API](https://github.com/ipfs/js-ipfs) instance. **peerId** is a string identifying the peer, usually the base58 string of the [PeerId](https://github.com/libp2p/js-peer-id#tob58string) of the IPFS instance. **address** is the OrbitDB address to be used for the store.
+**ipfs** can be an [IPFS](https://github.com/ipfs/js-ipfs) instance or an [IPFS-API](https://github.com/ipfs/js-ipfs) instance. **identity** is an instance of [Identity](https://github.com/orbitdb/orbit-db-identity-provider/). **address** is the OrbitDB address to be used for the store.
 
 `options` is an object with the following required properties:
 
 - `cache`: A [Cache](https://github.com/orbitdb/orbit-db-cache) instance to use for storing heads and snapshots.
 - `Index` : By default it uses an instance of [Index](https://github.com/orbitdb/orbit-db-store/blob/master/src/Index.js).
-- `keystore`: A [Keystore](https://github.com/orbitdb/orbit-db-keystore) instance to use for key management.
 
 the following properties are optional:
 
 - `maxHistory` (Integer): The number of entries to load (Default: `-1`).
 - `referenceCount` (Integer): The number of previous ipfs-log entries a new entry should reference (Default: `64`).
 - `replicationConcurrency` (Integer): The number of concurrent replication processes (Default: `128`).
-- `key`: A [KeyPair](https://github.com/indutny/elliptic/blob/master/lib/elliptic/ec/key.js#L8) instance. By default the provided keystore is used to find an existing KeyPair for the given `peerId`, otherwise a new KeyPair will be created using the given `peerId`.
-- `accessController` (Object): By default only the owner will have write access.
+- `accessController` (Object): An instance of AccessController with the following [interface](https://github.com/orbitdb/orbit-db-access-controllers/blob/master/src/access-controller-interface.js). See [orbit-db-access-controllers](https://github.com/orbitdb/orbit-db-access-controllers) for more information on how to create custom access controllers. By default only the owner will have write access.
 - `onClose` (Function): A function to be called with a string of the OrbitDB address of the database that is closing.
 
 ### Public methods

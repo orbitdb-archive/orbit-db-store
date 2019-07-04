@@ -419,6 +419,7 @@ class Store {
 
   async _addOperation (data, batchOperation, lastOperation, onProgressCallback) {
     if (this._oplog) {
+      await this.load()
       const entry = await this._oplog.append(data, this.options.referenceCount)
       this._recalculateReplicationStatus(this.replicationStatus.progress + 1, entry.clock.time)
       await this._cache.set('_localHeads', [entry])

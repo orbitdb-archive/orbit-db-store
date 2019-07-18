@@ -17,7 +17,7 @@ const DefaultOptions = {
   Index: Index,
   maxHistory: -1,
   directory: './orbitdb',
-  fetchHeadTimeout: null,
+  fetchEntryTimeout: null,
   replicate: true,
   referenceCount: 64,
   replicationConcurrency: 128
@@ -198,9 +198,9 @@ class Store {
     this._cache = this.options.cache
   }
 
-  async load (amount, { fetchHeadTimeout } = {}) {
+  async load (amount, { fetchEntryTimeout } = {}) {
     amount = amount || this.options.maxHistory
-    fetchHeadTimeout = fetchHeadTimeout || this.options.fetchHeadTimeout;
+    fetchEntryTimeout = fetchEntryTimeout || this.options.fetchEntryTimeout;
 
     const localHeads = await this._cache.get('_localHeads') || []
     const remoteHeads = await this._cache.get('_remoteHeads') || []
@@ -212,7 +212,7 @@ class Store {
 
     await mapSeries(heads, async (head) => {
       this._recalculateReplicationMax(head.clock.time)
-      const log = await Log.fromEntryHash(this._ipfs, this.identity, head.hash, { logId: this._oplog.id, access: this.access, length: amount, exclude: this._oplog.values, onProgressCallback:  this._onLoadProgress.bind(this), timeout: fetchHeadTimeout })
+      const log = await Log.fromEntryHash(this._ipfs, this.identity, head.hash, { logId: this._oplog.id, access: this.access, length: amount, exclude: this._oplog.values, onProgressCallback:  this._onLoadProgress.bind(this), timeout: fetchEntryTimeout })
       await this._oplog.join(log, amount)
     })
 

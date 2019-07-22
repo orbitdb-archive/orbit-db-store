@@ -1,6 +1,6 @@
 {
   "name": "orbit-db-store",
-  "version": "2.6.2",
+  "version": "2.6.3",
   "description": "Base class for orbit-db data stores",
   "main": "src/Store.js",
   "scripts": {

@@ -60,7 +60,7 @@ class Store {
     this._oplog = new Log(this._ipfs, this.identity, { logId: this.id, access: this.access, sortFn: this.options.sortFn })
 
     // Create the index
-    this._index = new this.options.Index(this.identity.publicKey)
+    this._index = new this.options.Index(this.address.root)
 
     // Replication progress info
     this._replicationStatus = new ReplicationInfo()
@@ -149,6 +149,11 @@ class Store {
     return this._replicationStatus
   }
 
+  setIdentity (identity) {
+    this.identity = identity
+    this._oplog.setIdentity(identity)
+  }
+
   async close () {
     if (this.options.onClose) {
       await this.options.onClose(this.address.toString())
@@ -195,7 +200,7 @@ class Store {
     await this.close()
     await this._cache.destroy()
     // Reset
-    this._index = new this.options.Index(this.identity.publicKey)
+    this._index = new this.options.Index(this.address.root)
     this._oplog = new Log(this._ipfs, this.identity, { logId: this.id, access: this.access, sortFn: this.options.sortFn })
     this._cache = this.options.cache
   }

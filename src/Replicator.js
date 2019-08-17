@@ -112,6 +112,8 @@ class Replicator extends EventEmitter {
 
   stop () {
     // Clears the queue flusher
+    this._queue = {}
+    this._stopped = true
     clearInterval(this._flushTimer)
   }
 
@@ -122,6 +124,10 @@ class Replicator extends EventEmitter {
   }
 
   async _processQueue () {
+    if (this._stopped) {
+      return
+    }
+
     if (this.tasksRunning < this._concurrency) {
       const capacity = this._concurrency - this.tasksRunning
       const items = Object.values(this._queue).slice(0, capacity).filter(notNull)

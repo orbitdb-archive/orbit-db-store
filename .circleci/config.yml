@@ -1,0 +1,59 @@
+# Use the latest 2.1 version of CircleCI pipeline processing engine, see https://circleci.com/docs/2.0/configuration-reference/
+version: 2.1
+
+executors:
+  node10-browsers:
+    docker:
+      - image: circleci/node:10-browsers
+
+jobs:
+  setup:
+    executor: node10-browsers
+    steps:
+      - checkout
+      - run: mkdir -p /tmp/workspace
+      - run: make clean-dependencies
+      - run: make deps
+      - run: npm run lint
+      - run: cp -R src conf node_modules test package.json /tmp/workspace
+      - persist_to_workspace:
+          root: /tmp/workspace
+          paths:
+            - src
+            - node_modules
+            - test
+            - conf
+            - package.json
+  test-node:
+    executor: node10-browsers
+    steps:
+      - attach_workspace:
+          at: ./
+      - run: npm run test:node
+  test-browser:
+    executor: node10-browsers
+    steps:
+      - attach_workspace:
+          at: ./
+      - run: npm run test:browser
+  build:
+    executor: node10-browsers
+    steps:
+      - attach_workspace:
+          at: ./
+      - run: npm run build
+
+workflows:
+  version: 2
+  Tests:
+    jobs:
+      - setup
+      - test-node:
+          requires:
+            - setup
+      - test-browser:
+          requires:
+            - setup
+      - build:
+          requires:
+            - setup

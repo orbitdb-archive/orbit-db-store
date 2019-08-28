@@ -1,0 +1,7 @@
+*sublime*
+node_modules/
+dist/*.min.js.map
+test
+conf
+Makefile
+.circleci

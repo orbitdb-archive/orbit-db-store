@@ -1,5 +1,6 @@
 'use strict'
 
+const path = require('path')
 const EventEmitter = require('events').EventEmitter
 const Readable = require('readable-stream')
 const mapSeries = require('p-each-series')
@@ -19,7 +20,7 @@ const DefaultOptions = {
   directory: './orbitdb',
   fetchEntryTimeout: null,
   replicate: true,
-  referenceCount: 64,
+  referenceCount: 32,
   replicationConcurrency: 128,
   syncLocal: false,
   sortFn: undefined
@@ -32,7 +33,7 @@ class Store {
     }
 
     // Set the options
-    let opts = Object.assign({}, DefaultOptions)
+    const opts = Object.assign({}, DefaultOptions)
     Object.assign(opts, options)
     this.options = opts
 
@@ -45,6 +46,12 @@ class Store {
     this.address = address
     this.dbname = address.path || ''
     this.events = new EventEmitter()
+
+    this.remoteHeadsPath = path.join(address, '_remoteHeads')
+    this.localHeadsPath = path.join(address, '_localHeads')
+    this.snapshotPath = path.join(address, 'snapshot')
+    this.queuePath = path.join(address, 'queue')
+    this.manifestPath = path.join(address, '_manifest')
 
     // External dependencies
     this._ipfs = ipfs
@@ -99,7 +106,7 @@ class Store {
 
       const onLoadCompleted = async (logs, have) => {
         try {
-          for (let log of logs) {
+          for (const log of logs) {
             await this._oplog.join(log)
           }
           this._replicationStatus.queued -= logs.length
@@ -108,7 +115,7 @@ class Store {
 
           // only store heads that has been verified and merges
           const heads = this._oplog.heads
-          await this._cache.set('_remoteHeads', heads)
+          await this._cache.set(this.remoteHeadsPath, heads)
           logger.debug(`Saved heads ${heads.length} [${heads.map(e => e.hash).join(', ')}]`)
 
           // logger.debug(`<replicated>`)
@@ -183,7 +190,7 @@ class Store {
     this.events.removeAllListeners('write')
 
     // Close cache
-    await this._cache.close()
+    if (this._cache) await this._cache.close()
 
     // Database is now closed
     // TODO: afaik we don't use 'closed' event anymore,
@@ -197,8 +204,14 @@ class Store {
    * @return {[None]}
    */
   async drop () {
+    await this._cache.del(this.localHeadsPath)
+    await this._cache.del(this.remoteHeadsPath)
+    await this._cache.del(this.snapshotPath)
+    await this._cache.del(this.queuePath)
+    await this._cache.del(this.manifestPath)
+
     await this.close()
-    await this._cache.destroy()
+
     // Reset
     this._index = new this.options.Index(this.address.root)
     this._oplog = new Log(this._ipfs, this.identity, { logId: this.id, access: this.access, sortFn: this.options.sortFn })
@@ -207,10 +220,10 @@ class Store {
 
   async load (amount, { fetchEntryTimeout } = {}) {
     amount = amount || this.options.maxHistory
-    fetchEntryTimeout = fetchEntryTimeout || this.options.fetchEntryTimeout;
+    fetchEntryTimeout = fetchEntryTimeout || this.options.fetchEntryTimeout
 
-    const localHeads = await this._cache.get('_localHeads') || []
-    const remoteHeads = await this._cache.get('_remoteHeads') || []
+    const localHeads = await this._cache.get(this.localHeadsPath) || []
+    const remoteHeads = await this._cache.get(this.remoteHeadsPath) || []
     const heads = localHeads.concat(remoteHeads)
 
     if (heads.length > 0) {
@@ -219,7 +232,7 @@ class Store {
 
     await mapSeries(heads, async (head) => {
       this._recalculateReplicationMax(head.clock.time)
-      const log = await Log.fromEntryHash(this._ipfs, this.identity, head.hash, { logId: this._oplog.id, access: this.access, sortFn: this.options.sortFn, length: amount, exclude: this._oplog.values, onProgressCallback:  this._onLoadProgress.bind(this), timeout: fetchEntryTimeout })
+      const log = await Log.fromEntryHash(this._ipfs, this.identity, head.hash, { logId: this._oplog.id, access: this.access, sortFn: this.options.sortFn, length: amount, exclude: this._oplog.values, onProgressCallback: this._onLoadProgress.bind(this), timeout: fetchEntryTimeout })
       await this._oplog.join(log, amount)
     })
 
@@ -285,22 +298,22 @@ class Store {
   async saveSnapshot () {
     const unfinished = this._replicator.getQueue()
 
-    let snapshotData = this._oplog.toSnapshot()
-    let header = Buffer.from(JSON.stringify({
+    const snapshotData = this._oplog.toSnapshot()
+    const header = Buffer.from(JSON.stringify({
       id: snapshotData.id,
       heads: snapshotData.heads,
       size: snapshotData.values.length,
       type: this.type
     }))
     const rs = new Readable()
-    let size = new Uint16Array([header.length])
-    let bytes = Buffer.from(size.buffer)
+    const size = new Uint16Array([header.length])
+    const bytes = Buffer.from(size.buffer)
     rs.push(bytes)
     rs.push(header)
 
     const addToStream = (val) => {
-      let str = Buffer.from(JSON.stringify(val))
-      let size = new Uint16Array([str.length])
+      const str = Buffer.from(JSON.stringify(val))
+      const size = new Uint16Array([str.length])
       rs.push(Buffer.from(size.buffer))
       rs.push(str)
     }
@@ -310,8 +323,8 @@ class Store {
 
     const snapshot = this._ipfs.files.add ? await this._ipfs.files.add(rs) : await this._ipfs.add(rs)
 
-    await this._cache.set('snapshot', snapshot[snapshot.length - 1])
-    await this._cache.set('queue', unfinished)
+    await this._cache.set(this.snapshotPath, snapshot[snapshot.length - 1])
+    await this._cache.set(this.queuePath, unfinished)
 
     logger.debug(`Saved snapshot: ${snapshot[snapshot.length - 1].hash}, queue length: ${unfinished.length}`)
 
@@ -323,10 +336,10 @@ class Store {
 
     const maxClock = (res, val) => Math.max(res, val.clock.time)
 
-    const queue = await this._cache.get('queue')
+    const queue = await this._cache.get(this.queuePath)
     this.sync(queue || [])
 
-    const snapshot = await this._cache.get('snapshot')
+    const snapshot = await this._cache.get(this.snapshotPath)
 
     if (snapshot) {
       const res = this._ipfs.files.catReadableStream ? await this._ipfs.files.catReadableStream(snapshot.hash) : await this._ipfs.catReadableStream(snapshot.hash)
@@ -370,7 +383,7 @@ class Store {
               // TODO
             }
 
-            let values = []
+            const values = []
             let a = 2 + headerSize
             while (a < buf.length) {
               const s = parseInt(new Uint16Array(toArrayBuffer(buf.slice(a, a + 2))))
@@ -447,7 +460,7 @@ class Store {
 
       const entry = await this._oplog.append(data, this.options.referenceCount)
       this._recalculateReplicationStatus(this.replicationStatus.progress + 1, entry.clock.time)
-      await this._cache.set('_localHeads', [entry])
+      await this._cache.set(this.localHeadsPath, [entry])
       await this._updateIndex()
       this.events.emit('write', this.address.toString(), entry, this._oplog.heads)
       if (onProgressCallback) onProgressCallback(entry)
@@ -490,3 +503,4 @@ class Store {
 }
 
 module.exports = Store
+module.exports.DefaultOptions = DefaultOptions

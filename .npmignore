@@ -5,5 +5,3 @@ test
 conf
 Makefile
 .circleci
-test/browser/bundle.js
-test/browser/bundle.js.map

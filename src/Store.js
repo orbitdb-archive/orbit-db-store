@@ -47,11 +47,11 @@ class Store {
     this.dbname = address.path || ''
     this.events = new EventEmitter()
 
-    this.remoteHeadsPath = path.join(address, '_remoteHeads')
-    this.localHeadsPath = path.join(address, '_localHeads')
-    this.snapshotPath = path.join(address, 'snapshot')
-    this.queuePath = path.join(address, 'queue')
-    this.manifestPath = path.join(address, '_manifest')
+    this.remoteHeadsPath = path.join(this.id, '_remoteHeads')
+    this.localHeadsPath = path.join(this.id, '_localHeads')
+    this.snapshotPath = path.join(this.id, 'snapshot')
+    this.queuePath = path.join(this.id, 'queue')
+    this.manifestPath = path.join(this.id, '_manifest')
 
     // External dependencies
     this._ipfs = ipfs
@@ -190,7 +190,7 @@ class Store {
     this.events.removeAllListeners('write')
 
     // Close cache
-    if (this._cache) await this._cache.close()
+    // if (this._cache) await this._cache.close()
 
     // Database is now closed
     // TODO: afaik we don't use 'closed' event anymore,
@@ -439,8 +439,8 @@ class Store {
   }
 
   async syncLocal () {
-    const localHeads = await this._cache.get('_localHeads') || []
-    const remoteHeads = await this._cache.get('_remoteHeads') || []
+    const localHeads = await this._cache.get(this.localHeadsPath) || []
+    const remoteHeads = await this._cache.get(this.remoteHeadsPath) || []
     const heads = localHeads.concat(remoteHeads)
     for (let i = 0; i < heads.length; i++) {
       const head = heads[i]

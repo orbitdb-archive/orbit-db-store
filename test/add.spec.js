@@ -64,7 +64,7 @@ Object.keys(testAPIs).forEach((IPFS) => {
       store.events.on('write', (address, entry, heads) => {
         assert.strictEqual(heads.length, 1)
         assert.strictEqual(address, 'test-address')
-        assert.strictEqual(entry.payload, data)
+        assert.deepStrictEqual(entry.payload, data)
         assert.strictEqual(store.replicationStatus.progress, 1)
         assert.strictEqual(store.replicationStatus.max, 1)
         assert.strictEqual(store.address.root, store._index.id)
@@ -76,6 +76,21 @@ Object.keys(testAPIs).forEach((IPFS) => {
           store.events.removeAllListeners('write')
           done()
         })
+      })
+      store._addOperation(data)
+    })
+
+    it('oplog entry payload equals cache entry payload', (done) => {			
+      const data = new Uint8Array([1,2,3])
+      const serialized = JSON.parse(JSON.stringify(data))
+			
+      store.events.on('write', async (address, entry, heads) => {
+        assert.deepStrictEqual(entry.payload, serialized)
+        assert.deepStrictEqual(store._oplog._headsIndex[entry.hash].payload, serialized)
+        const localHeads = await store._cache.get(store.localHeadsPath)
+        assert.deepStrictEqual(localHeads[0].payload, serialized)
+        store.events.removeAllListeners('write')
+        done()
       })
       store._addOperation(data)
     })

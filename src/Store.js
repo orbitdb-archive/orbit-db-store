@@ -458,6 +458,8 @@ class Store {
         await this.syncLocal()
       }
 
+      data = JSON.parse(JSON.stringify(data))
+
       const entry = await this._oplog.append(data, this.options.referenceCount)
       this._recalculateReplicationStatus(this.replicationStatus.progress + 1, entry.clock.time)
       await this._cache.set(this.localHeadsPath, [entry])

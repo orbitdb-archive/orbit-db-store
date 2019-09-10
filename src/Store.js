@@ -189,9 +189,6 @@ class Store {
     this.events.removeAllListeners('ready')
     this.events.removeAllListeners('write')
 
-    // Close cache
-    if (this._cache && !this._cache.isDefault) await this._cache.close()
-
     // Database is now closed
     // TODO: afaik we don't use 'closed' event anymore,
     // to be removed in future releases

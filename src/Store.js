@@ -201,6 +201,7 @@ class Store {
    * @return {[None]}
    */
   async drop () {
+    await this._cache.open()
     await this._cache.del(this.localHeadsPath)
     await this._cache.del(this.remoteHeadsPath)
     await this._cache.del(this.snapshotPath)
@@ -219,26 +220,30 @@ class Store {
     amount = amount || this.options.maxHistory
     fetchEntryTimeout = fetchEntryTimeout || this.options.fetchEntryTimeout
 
-    const localHeads = await this._cache.get(this.localHeadsPath) || []
-    const remoteHeads = await this._cache.get(this.remoteHeadsPath) || []
-    const heads = localHeads.concat(remoteHeads)
+    try {
+      const localHeads = await this._cache.get(this.localHeadsPath) || []
+      const remoteHeads = await this._cache.get(this.remoteHeadsPath) || []
+      const heads = localHeads.concat(remoteHeads)
 
-    if (heads.length > 0) {
-      this.events.emit('load', this.address.toString(), heads)
+      if (heads.length > 0) {
+        this.events.emit('load', this.address.toString(), heads)
+      }
+
+      await mapSeries(heads, async (head) => {
+        this._recalculateReplicationMax(head.clock.time)
+        const log = await Log.fromEntryHash(this._ipfs, this.identity, head.hash, { logId: this._oplog.id, access: this.access, sortFn: this.options.sortFn, length: amount, exclude: this._oplog.values, onProgressCallback: this._onLoadProgress.bind(this), timeout: fetchEntryTimeout })
+        await this._oplog.join(log, amount)
+      })
+
+      // Update the index
+      if (heads.length > 0) {
+        await this._updateIndex()
+      }
+
+      this.events.emit('ready', this.address.toString(), this._oplog.heads)
+    } catch (e) {
+      console.warn('Warning: Database closed while loading - please consider `await db.load()`')
     }
-
-    await mapSeries(heads, async (head) => {
-      this._recalculateReplicationMax(head.clock.time)
-      const log = await Log.fromEntryHash(this._ipfs, this.identity, head.hash, { logId: this._oplog.id, access: this.access, sortFn: this.options.sortFn, length: amount, exclude: this._oplog.values, onProgressCallback: this._onLoadProgress.bind(this), timeout: fetchEntryTimeout })
-      await this._oplog.join(log, amount)
-    })
-
-    // Update the index
-    if (heads.length > 0) {
-      await this._updateIndex()
-    }
-
-    this.events.emit('ready', this.address.toString(), this._oplog.heads)
   }
 
   sync (heads) {

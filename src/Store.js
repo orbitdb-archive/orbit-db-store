@@ -201,11 +201,19 @@ class Store {
    * @return {[None]}
    */
   async drop () {
-    await this._cache.del(this.localHeadsPath)
-    await this._cache.del(this.remoteHeadsPath)
-    await this._cache.del(this.snapshotPath)
-    await this._cache.del(this.queuePath)
-    await this._cache.del(this.manifestPath)
+    try {
+      await this._cache.del(this.localHeadsPath)
+      await this._cache.del(this.remoteHeadsPath)
+      await this._cache.del(this.snapshotPath)
+      await this._cache.del(this.queuePath)
+      await this._cache.del(this.manifestPath)
+    } catch (e) {
+      if (e.type === 'ReadError') {
+        console.warn('Warning: Database closed while dropping, check the timing of db.drop and db.close')
+      } else {
+        throw new Error(e)
+      }
+    }
 
     await this.close()
 
@@ -220,6 +228,7 @@ class Store {
     fetchEntryTimeout = fetchEntryTimeout || this.options.fetchEntryTimeout
 
     try {
+      await this._cache.open()
       const localHeads = await this._cache.get(this.localHeadsPath) || []
       const remoteHeads = await this._cache.get(this.remoteHeadsPath) || []
       const heads = localHeads.concat(remoteHeads)
@@ -241,7 +250,11 @@ class Store {
 
       this.events.emit('ready', this.address.toString(), this._oplog.heads)
     } catch (e) {
-      console.warn('Warning: Database closed while loading - please consider `await db.load()`')
+      if (e.type === 'ReadError') {
+        console.warn('Warning: Database closed while loading - please consider `await db.load()`')
+      } else {
+        throw new Error(e)
+      }
     }
   }
 

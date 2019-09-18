@@ -2,4 +2,4 @@
 node_modules/
 test/browser/bundle.js
 test/browser/bundle.js.map
-dist/orbit-db-store.min.map
+dist/orbit-db-store.min.js.map

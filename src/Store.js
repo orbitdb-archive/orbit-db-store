@@ -163,7 +163,7 @@ class Store {
 
   async close () {
     if (this.options.onClose) {
-      await this.options.onClose(this.address.toString())
+      await this.options.onClose(this)
     }
 
     // Replicator teardown logic
@@ -201,19 +201,15 @@ class Store {
    * @return {[None]}
    */
   async drop () {
-    try {
-      await this._cache.del(this.localHeadsPath)
-      await this._cache.del(this.remoteHeadsPath)
-      await this._cache.del(this.snapshotPath)
-      await this._cache.del(this.queuePath)
-      await this._cache.del(this.manifestPath)
-    } catch (e) {
-      if (e.type === 'ReadError') {
-        console.warn('Warning: Database closed while dropping, check the timing of db.drop and db.close')
-      } else {
-        throw new Error(e)
-      }
+    if (this.options.onDrop) {
+      await this.options.onDrop(this)
     }
+
+    await this._cache.del(this.localHeadsPath)
+    await this._cache.del(this.remoteHeadsPath)
+    await this._cache.del(this.snapshotPath)
+    await this._cache.del(this.queuePath)
+    await this._cache.del(this.manifestPath)
 
     await this.close()
 

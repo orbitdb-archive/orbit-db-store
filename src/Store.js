@@ -224,7 +224,9 @@ class Store {
     fetchEntryTimeout = fetchEntryTimeout || this.options.fetchEntryTimeout
 
     try {
-      await this._cache.open()
+      if (this.options.onLoad) {
+        await this.options.onLoad(this)
+      }
       const localHeads = await this._cache.get(this.localHeadsPath) || []
       const remoteHeads = await this._cache.get(this.remoteHeadsPath) || []
       const heads = localHeads.concat(remoteHeads)

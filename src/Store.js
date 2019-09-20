@@ -17,7 +17,6 @@ const dagNode = require('orbit-db-io')
 const DefaultOptions = {
   Index: Index,
   maxHistory: -1,
-  directory: './orbitdb',
   fetchEntryTimeout: null,
   replicate: true,
   referenceCount: 32,
@@ -223,37 +222,29 @@ class Store {
     amount = amount || this.options.maxHistory
     fetchEntryTimeout = fetchEntryTimeout || this.options.fetchEntryTimeout
 
-    try {
-      if (this.options.onLoad) {
-        await this.options.onLoad(this)
-      }
-      const localHeads = await this._cache.get(this.localHeadsPath) || []
-      const remoteHeads = await this._cache.get(this.remoteHeadsPath) || []
-      const heads = localHeads.concat(remoteHeads)
-
-      if (heads.length > 0) {
-        this.events.emit('load', this.address.toString(), heads)
-      }
-
-      await mapSeries(heads, async (head) => {
-        this._recalculateReplicationMax(head.clock.time)
-        const log = await Log.fromEntryHash(this._ipfs, this.identity, head.hash, { logId: this._oplog.id, access: this.access, sortFn: this.options.sortFn, length: amount, exclude: this._oplog.values, onProgressCallback: this._onLoadProgress.bind(this), timeout: fetchEntryTimeout })
-        await this._oplog.join(log, amount)
-      })
-
-      // Update the index
-      if (heads.length > 0) {
-        await this._updateIndex()
-      }
-
-      this.events.emit('ready', this.address.toString(), this._oplog.heads)
-    } catch (e) {
-      if (e.type === 'ReadError') {
-        console.warn('Warning: Database closed while loading - please consider `await db.load()`')
-      } else {
-        throw new Error(e)
-      }
+    if (this.options.onLoad) {
+      await this.options.onLoad(this)
     }
+    const localHeads = await this._cache.get(this.localHeadsPath) || []
+    const remoteHeads = await this._cache.get(this.remoteHeadsPath) || []
+    const heads = localHeads.concat(remoteHeads)
+
+    if (heads.length > 0) {
+      this.events.emit('load', this.address.toString(), heads)
+    }
+
+    await mapSeries(heads, async (head) => {
+      this._recalculateReplicationMax(head.clock.time)
+      const log = await Log.fromEntryHash(this._ipfs, this.identity, head.hash, { logId: this._oplog.id, access: this.access, sortFn: this.options.sortFn, length: amount, exclude: this._oplog.values, onProgressCallback: this._onLoadProgress.bind(this), timeout: fetchEntryTimeout })
+      await this._oplog.join(log, amount)
+    })
+
+    // Update the index
+    if (heads.length > 0) {
+      await this._updateIndex()
+    }
+
+    this.events.emit('ready', this.address.toString(), this._oplog.heads)
   }
 
   sync (heads) {

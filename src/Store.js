@@ -17,7 +17,6 @@ const dagNode = require('orbit-db-io')
 const DefaultOptions = {
   Index: Index,
   maxHistory: -1,
-  directory: './orbitdb',
   fetchEntryTimeout: null,
   replicate: true,
   referenceCount: 32,
@@ -163,7 +162,7 @@ class Store {
 
   async close () {
     if (this.options.onClose) {
-      await this.options.onClose(this.address.toString())
+      await this.options.onClose(this)
     }
 
     // Replicator teardown logic
@@ -201,6 +200,10 @@ class Store {
    * @return {[None]}
    */
   async drop () {
+    if (this.options.onDrop) {
+      await this.options.onDrop(this)
+    }
+
     await this._cache.del(this.localHeadsPath)
     await this._cache.del(this.remoteHeadsPath)
     await this._cache.del(this.snapshotPath)
@@ -219,6 +222,9 @@ class Store {
     amount = amount || this.options.maxHistory
     fetchEntryTimeout = fetchEntryTimeout || this.options.fetchEntryTimeout
 
+    if (this.options.onLoad) {
+      await this.options.onLoad(this)
+    }
     const localHeads = await this._cache.get(this.localHeadsPath) || []
     const remoteHeads = await this._cache.get(this.remoteHeadsPath) || []
     const heads = localHeads.concat(remoteHeads)

@@ -335,6 +335,10 @@ class Store {
   }
 
   async loadFromSnapshot (onProgressCallback) {
+    if (this.options.onLoad) {
+      await this.options.onLoad(this)
+    }
+
     this.events.emit('load', this.address.toString())
 
     const maxClock = (res, val) => Math.max(res, val.clock.time)

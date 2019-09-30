@@ -26,7 +26,7 @@ const DefaultOptions = {
 }
 
 class Store {
-  constructor (ipfs, identity, address, options) {
+  constructor (ipfs, identities, identity, address, options) {
     if (!identity) {
       throw new Error('Identity required')
     }
@@ -41,7 +41,9 @@ class Store {
 
     // Create IDs, names and paths
     this.id = address.toString()
-    this.identity = identity
+    this.keystore = options.keystore
+    this._identities = identities
+    this._identity = identity
     this.address = address
     this.dbname = address.path || ''
     this.events = new EventEmitter()
@@ -58,12 +60,12 @@ class Store {
 
     // Access mapping
     const defaultAccess = {
-      canAppend: (entry) => (entry.identity.publicKey === identity.publicKey)
+      canAppend: (entry) => (entry.identity.id === identity.id)
     }
     this.access = options.accessController || defaultAccess
 
     // Create the operations log
-    this._oplog = new Log(this._ipfs, this.identity, { logId: this.id, access: this.access, sortFn: this.options.sortFn })
+    this._oplog = new Log(this._ipfs, this.identity.publicKey, { logId: this.id, access: this.access, sortFn: this.options.sortFn })
 
     // Create the index
     this._index = new this.options.Index(this.address.root)
@@ -106,7 +108,7 @@ class Store {
       const onLoadCompleted = async (logs, have) => {
         try {
           for (const log of logs) {
-            await this._oplog.join(log)
+            await this._oplog.join(log, this.identities, this.keystore)
           }
           this._replicationStatus.queued -= logs.length
           this._replicationStatus.buffered = this._replicator._buffer.length
@@ -143,8 +145,12 @@ class Store {
     return this._type
   }
 
-  get key () {
-    return this._key
+  get identity () {
+    return this._identity
+  }
+
+  get identities () {
+    return this._identities
   }
 
   /**
@@ -156,8 +162,7 @@ class Store {
   }
 
   setIdentity (identity) {
-    this.identity = identity
-    this._oplog.setIdentity(identity)
+    this._identity = identity
   }
 
   async close () {
@@ -210,12 +215,13 @@ class Store {
     await this._cache.del(this.snapshotPath)
     await this._cache.del(this.queuePath)
     await this._cache.del(this.manifestPath)
+    await this._cache.close()
 
     await this.close()
 
     // Reset
     this._index = new this.options.Index(this.address.root)
-    this._oplog = new Log(this._ipfs, this.identity, { logId: this.id, access: this.access, sortFn: this.options.sortFn })
+    this._oplog = new Log(this._ipfs, this.identity.publicKey, { logId: this.id, access: this.access, sortFn: this.options.sortFn })
     this._cache = this.options.cache
   }
 
@@ -236,8 +242,8 @@ class Store {
 
     await mapSeries(heads, async (head) => {
       this._recalculateReplicationMax(head.clock.time)
-      const log = await Log.fromEntryHash(this._ipfs, this.identity, head.hash, { logId: this._oplog.id, access: this.access, sortFn: this.options.sortFn, length: amount, exclude: this._oplog.values, onProgressCallback: this._onLoadProgress.bind(this), timeout: fetchEntryTimeout })
-      await this._oplog.join(log, amount)
+      const log = await Log.fromEntryHash(this._ipfs, this.identity.publicKey, head.hash, { logId: this._oplog.id, access: this.access, sortFn: this.options.sortFn, length: amount, exclude: this._oplog.values, onProgressCallback: this._onLoadProgress.bind(this), timeout: fetchEntryTimeout })
+      await this._oplog.join(log, this.identities, this.keystore, amount)
     })
 
     // Update the index
@@ -268,17 +274,30 @@ class Store {
         return Promise.resolve(null)
       }
 
-      const identityProvider = this.identity.provider
+      const identityProvider = this.identities
       if (!identityProvider) throw new Error('Identity-provider is required, cannot verify entry')
 
-      const canAppend = await this.access.canAppend(head, identityProvider)
-      if (!canAppend) {
+      const canAppend = await this.access.canAppend(head)
+      const verifyIdentity = await this.identities.verifyIdentity(head.identity, this.keystore)
+      if (!canAppend || !verifyIdentity) {
         console.warn('Warning: Given input entry is not allowed in this log and was discarded (no write access).')
         return Promise.resolve(null)
       }
 
-      const logEntry = Object.assign({}, head)
-      logEntry.hash = null
+      // const logEntry = Object.assign({}, head)
+      const logEntry = {
+        hash: null, // "zd...Foo", we'll set the hash after persisting the entry
+        id: head.id, // For determining a unique chain
+        payload: head.payload, // Can be any JSON.stringifyable data
+        next: head.next, // Array of hashes
+        v: head.v, // To tag the version of this data structure
+        clock: head.clock
+      }
+
+      logEntry.key = head.key
+      logEntry.identity = head.identity
+      logEntry.sig = head.sig
+
       const codec = logEntry.v === 0 ? 'dag-pb' : 'dag-cbor'
       const hash = await dagNode.write(this._ipfs, codec, logEntry, { links: ['next'], onlyHash: true })
 
@@ -427,8 +446,8 @@ class Store {
       const snapshotData = await loadSnapshotData()
       this._recalculateReplicationMax(snapshotData.values.reduce(maxClock, 0))
       if (snapshotData) {
-        const log = await Log.fromJSON(this._ipfs, this.identity, snapshotData, { access: this.access, sortFn: this.options.sortFn, length: -1, timeout: 1000, onProgressCallback: onProgress })
-        await this._oplog.join(log)
+        const log = await Log.fromJSON(this._ipfs, this.identity.publicKey, snapshotData, { access: this.access, sortFn: this.options.sortFn, length: -1, timeout: 1000, onProgressCallback: onProgress })
+        await this._oplog.join(log, this.identities, this.keystore)
         await this._updateIndex()
         this.events.emit('replicated', this.address.toString())
       }
@@ -466,7 +485,7 @@ class Store {
         await this.syncLocal()
       }
 
-      const entry = await this._oplog.append(data, this.options.referenceCount)
+      const entry = await this._oplog.append(data, this.identity, this.identities, this.keystore, this.options.referenceCount)
       this._recalculateReplicationStatus(this.replicationStatus.progress + 1, entry.clock.time)
       await this._cache.set(this.localHeadsPath, [entry])
       await this._updateIndex()

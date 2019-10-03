@@ -284,20 +284,7 @@ class Store {
         return Promise.resolve(null)
       }
 
-      // const logEntry = Object.assign({}, head)
-      const logEntry = {
-        hash: null, // "zd...Foo", we'll set the hash after persisting the entry
-        id: head.id, // For determining a unique chain
-        payload: head.payload, // Can be any JSON.stringifyable data
-        next: head.next, // Array of hashes
-        v: head.v, // To tag the version of this data structure
-        clock: head.clock
-      }
-
-      logEntry.key = head.key
-      logEntry.identity = head.identity
-      logEntry.sig = head.sig
-
+      const logEntry = Object.assign({}, head)
       const codec = logEntry.v === 0 ? 'dag-pb' : 'dag-cbor'
       const hash = await dagNode.write(this._ipfs, codec, logEntry, { links: ['next'], onlyHash: true })
 

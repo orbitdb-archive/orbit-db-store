@@ -1,6 +1,6 @@
 {
   "name": "orbit-db-store",
-  "version": "2.7.0-rc6",
+  "version": "2.7.0",
   "description": "Base class for orbit-db data stores",
   "main": "src/Store.js",
   "scripts": {
@@ -22,7 +22,7 @@
   "author": "Haad",
   "license": "MIT",
   "dependencies": {
-    "ipfs-log": "next",
+    "ipfs-log": "~4.4.0",
     "logplease": "^1.2.14",
     "orbit-db-io": "~0.1.1",
     "p-each-series": "^1.0.0",
@@ -46,8 +46,8 @@
     "mocha": "^6.2.0",
     "mocha-headless-chrome": "^2.0.3",
     "orbit-db-cache": "next",
-    "orbit-db-identity-provider": "next",
-    "orbit-db-keystore": "next",
+    "orbit-db-identity-provider": "~0.2.0",
+    "orbit-db-keystore": "~0.3.0",
     "orbit-db-storage-adapter": "^0.4.2",
     "orbit-db-test-utils": "^0.7.5",
     "rimraf": "^3.0.0",

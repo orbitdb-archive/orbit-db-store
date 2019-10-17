@@ -189,7 +189,6 @@ class Store {
     this.events.removeAllListeners('write')
     this.events.removeAllListeners('peer')
 
-
     // Database is now closed
     // TODO: afaik we don't use 'closed' event anymore,
     // to be removed in future releases

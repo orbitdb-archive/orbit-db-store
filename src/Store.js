@@ -17,6 +17,7 @@ const dagNode = require('orbit-db-io')
 const DefaultOptions = {
   Index: Index,
   maxHistory: -1,
+  pin: true,
   fetchEntryTimeout: null,
   replicate: true,
   referenceCount: 32,
@@ -63,7 +64,7 @@ class Store {
     this.access = options.accessController || defaultAccess
 
     // Create the operations log
-    this._oplog = new Log(this._ipfs, this.identity, { logId: this.id, access: this.access, sortFn: this.options.sortFn })
+    this._oplog = new Log(this._ipfs, this.identity, { logId: this.id, access: this.access, sortFn: this.options.sortFn, pin: this.options.pin })
 
     // Create the index
     this._index = new this.options.Index(this.address.root)

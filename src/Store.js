@@ -56,14 +56,14 @@ class Store {
     this._ipfs = ipfs
     this._cache = options.cache
 
-    // Access mapping
     const defaultAccess = {
-      canAppend: (entry) => (entry.identity.publicKey === identity.publicKey)
+      canAppend: (entry) => (entry.identity.id === identity.id)
     }
     this.access = options.accessController || defaultAccess
 
+    const logOptions = Object.assign({ logId: this.id, access: this.access, sortFn: this.options.sortFn }, options.heads ? { heads: options.heads } : {})
     // Create the operations log
-    this._oplog = new Log(this._ipfs, this.identity, { logId: this.id, access: this.access, sortFn: this.options.sortFn })
+    this._oplog = new Log(this._ipfs, this.identity, logOptions)
 
     // Create the index
     this._index = new this.options.Index(this.address.root)
@@ -127,6 +127,14 @@ class Store {
     } catch (e) {
       console.error('Store Error:', e)
     }
+  }
+
+  static async loadHeadsFromCache (cache, address) {
+    const local = path.join(address.toString(), '_localHeads')
+    const remote = path.join(address.toString(), '_remoteHeads')
+    const localHeads = await cache.get(local) || []
+    const remoteHeads = await cache.get(remote) || []
+    return localHeads.concat(remoteHeads)
   }
 
   get all () {

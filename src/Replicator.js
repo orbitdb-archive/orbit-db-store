@@ -161,7 +161,7 @@ class Replicator extends EventEmitter {
     this._stats.tasksStarted += 1
 
     const exclude = []
-    const log = await Log.fromEntryHash(this._store._ipfs, this._store.identity, hash, { logId: this._store._oplog.id, access: this._store.access, length: batchSize, exclude })
+    const log = await Log.fromEntryHash(this._store._ipfs, this._store.identity, this._store.identities, this._store.keystore, hash, { logId: this._store._oplog.id, access: this._store.access, length: batchSize, exclude })
     this._buffer.push(log)
 
     const latest = log.values[0]

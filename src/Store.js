@@ -65,7 +65,7 @@ class Store {
     this.access = options.accessController || defaultAccess
 
     // Create the operations log
-    this._oplog = new Log(this._ipfs, this.identity.publicKey, { logId: this.id, access: this.access, sortFn: this.options.sortFn })
+    this._oplog = new Log(this._ipfs, this.identity, this.identities, this.keystore, { logId: this.id, access: this.access, sortFn: this.options.sortFn })
 
     // Create the index
     this._index = new this.options.Index(this.address.root)
@@ -108,7 +108,7 @@ class Store {
       const onLoadCompleted = async (logs, have) => {
         try {
           for (const log of logs) {
-            await this._oplog.join(log, this.identities, this.keystore)
+            await this._oplog.join(log)
           }
           this._replicationStatus.queued -= logs.length
           this._replicationStatus.buffered = this._replicator._buffer.length
@@ -221,7 +221,7 @@ class Store {
 
     // Reset
     this._index = new this.options.Index(this.address.root)
-    this._oplog = new Log(this._ipfs, this.identity.publicKey, { logId: this.id, access: this.access, sortFn: this.options.sortFn })
+    this._oplog = new Log(this._ipfs, this.identity, this.identities, this.keystore, { logId: this.id, access: this.access, sortFn: this.options.sortFn })
     this._cache = this.options.cache
   }
 
@@ -242,8 +242,8 @@ class Store {
 
     await mapSeries(heads, async (head) => {
       this._recalculateReplicationMax(head.clock.time)
-      const log = await Log.fromEntryHash(this._ipfs, this.identity.publicKey, head.hash, { logId: this._oplog.id, access: this.access, sortFn: this.options.sortFn, length: amount, exclude: this._oplog.values, onProgressCallback: this._onLoadProgress.bind(this), timeout: fetchEntryTimeout })
-      await this._oplog.join(log, this.identities, this.keystore, amount)
+      const log = await Log.fromEntryHash(this._ipfs, this.identity, this.identities, this.keystore, head.hash, { logId: this._oplog.id, access: this.access, sortFn: this.options.sortFn, length: amount, exclude: this._oplog.values, onProgressCallback: this._onLoadProgress.bind(this), timeout: fetchEntryTimeout })
+      await this._oplog.join(log, amount)
     })
 
     // Update the index
@@ -433,8 +433,8 @@ class Store {
       const snapshotData = await loadSnapshotData()
       this._recalculateReplicationMax(snapshotData.values.reduce(maxClock, 0))
       if (snapshotData) {
-        const log = await Log.fromJSON(this._ipfs, this.identity.publicKey, snapshotData, { access: this.access, sortFn: this.options.sortFn, length: -1, timeout: 1000, onProgressCallback: onProgress })
-        await this._oplog.join(log, this.identities, this.keystore)
+        const log = await Log.fromJSON(this._ipfs, this.identity, this.identities, this.keystore, snapshotData, { access: this.access, sortFn: this.options.sortFn, length: -1, timeout: 1000, onProgressCallback: onProgress })
+        await this._oplog.join(log)
         await this._updateIndex()
         this.events.emit('replicated', this.address.toString())
       }
@@ -472,7 +472,7 @@ class Store {
         await this.syncLocal()
       }
 
-      const entry = await this._oplog.append(data, this.identity, this.identities, this.keystore, this.options.referenceCount)
+      const entry = await this._oplog.append(data, this.options.referenceCount)
       this._recalculateReplicationStatus(this.replicationStatus.progress + 1, entry.clock.time)
       await this._cache.set(this.localHeadsPath, [entry])
       await this._updateIndex()

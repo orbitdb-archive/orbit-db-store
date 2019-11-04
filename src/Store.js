@@ -152,7 +152,7 @@ class Store {
   get identities () {
     return this._identities
   }
-
+  
   /**
    * Returns the database's current replication status information
    * @return {[Object]} [description]
@@ -163,6 +163,7 @@ class Store {
 
   setIdentity (identity) {
     this._identity = identity
+    this._oplog.setIdentity(identity)
   }
 
   async close () {
@@ -284,7 +285,17 @@ class Store {
         return Promise.resolve(null)
       }
 
-      const logEntry = Object.assign({}, head)
+      const logEntry = {
+        hash: null,
+        id: head.id,
+        payload: head.payload,
+        next: head.next,
+        v: head.v,
+        clock: head.clock
+      }
+      if (head.key) Object.assign(logEntry, { key: head.key })
+      if (head.identity) Object.assign(logEntry, { identity: head.identity })
+      if (head.sig) Object.assign(logEntry, { sig: head.sig })
       const codec = logEntry.v === 0 ? 'dag-pb' : 'dag-cbor'
       const hash = await dagNode.write(this._ipfs, codec, logEntry, { links: ['next'], onlyHash: true })
 

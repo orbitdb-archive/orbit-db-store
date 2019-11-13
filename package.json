@@ -46,7 +46,6 @@
     "mocha": "^6.2.0",
     "mocha-headless-chrome": "^2.0.3",
     "orbit-db-cache": "next",
-    "orbit-db-identity-provider": "orbitdb/orbit-db-identity-provider#feat/rm-provider",
     "orbit-db-keystore": "next",
     "orbit-db-storage-adapter": "^0.4.2",
     "orbit-db-test-utils": "^0.7.5",

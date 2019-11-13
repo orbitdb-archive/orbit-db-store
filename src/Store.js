@@ -26,7 +26,7 @@ const DefaultOptions = {
 }
 
 class Store {
-  constructor (ipfs, identities, identity, address, options) {
+  constructor (ipfs, identity, identities, address, options) {
     if (!identity) {
       throw new Error('Identity required')
     }
@@ -41,9 +41,8 @@ class Store {
 
     // Create IDs, names and paths
     this.id = address.toString()
-    this.keystore = options.keystore
-    this._identities = identities
     this._identity = identity
+    this._identities = identities
     this.address = address
     this.dbname = address.path || ''
     this.events = new EventEmitter()
@@ -65,7 +64,7 @@ class Store {
     this.access = options.accessController || defaultAccess
 
     // Create the operations log
-    this._oplog = new Log(this._ipfs, this.identity, this.identities, this.keystore, { logId: this.id, access: this.access, sortFn: this.options.sortFn })
+    this._oplog = new Log(this._ipfs, this.identity, this.identities, { logId: this.id, access: this.access, sortFn: this.options.sortFn })
 
     // Create the index
     this._index = new this.options.Index(this.address.root)
@@ -152,7 +151,7 @@ class Store {
   get identities () {
     return this._identities
   }
-  
+
   /**
    * Returns the database's current replication status information
    * @return {[Object]} [description]
@@ -222,7 +221,7 @@ class Store {
 
     // Reset
     this._index = new this.options.Index(this.address.root)
-    this._oplog = new Log(this._ipfs, this.identity, this.identities, this.keystore, { logId: this.id, access: this.access, sortFn: this.options.sortFn })
+    this._oplog = new Log(this._ipfs, this.identity, this.identities, { logId: this.id, access: this.access, sortFn: this.options.sortFn })
     this._cache = this.options.cache
   }
 
@@ -243,7 +242,7 @@ class Store {
 
     await mapSeries(heads, async (head) => {
       this._recalculateReplicationMax(head.clock.time)
-      const log = await Log.fromEntryHash(this._ipfs, this.identity, this.identities, this.keystore, head.hash, { logId: this._oplog.id, access: this.access, sortFn: this.options.sortFn, length: amount, exclude: this._oplog.values, onProgressCallback: this._onLoadProgress.bind(this), timeout: fetchEntryTimeout })
+      const log = await Log.fromEntryHash(this._ipfs, this.identity, this.identities, head.hash, { logId: this._oplog.id, access: this.access, sortFn: this.options.sortFn, length: amount, exclude: this._oplog.values, onProgressCallback: this._onLoadProgress.bind(this), timeout: fetchEntryTimeout })
       await this._oplog.join(log, amount)
     })
 
@@ -279,7 +278,7 @@ class Store {
       if (!identityProvider) throw new Error('Identity-provider is required, cannot verify entry')
 
       const canAppend = await this.access.canAppend(head)
-      const verifyIdentity = await this.identities.verifyIdentity(head.identity, this.keystore)
+      const verifyIdentity = await this.identities.verifyIdentity(head.identity)
       if (!canAppend || !verifyIdentity) {
         console.warn('Warning: Given input entry is not allowed in this log and was discarded (no write access).')
         return Promise.resolve(null)
@@ -444,7 +443,7 @@ class Store {
       const snapshotData = await loadSnapshotData()
       this._recalculateReplicationMax(snapshotData.values.reduce(maxClock, 0))
       if (snapshotData) {
-        const log = await Log.fromJSON(this._ipfs, this.identity, this.identities, this.keystore, snapshotData, { access: this.access, sortFn: this.options.sortFn, length: -1, timeout: 1000, onProgressCallback: onProgress })
+        const log = await Log.fromJSON(this._ipfs, this.identity, this.identities, snapshotData, { access: this.access, sortFn: this.options.sortFn, length: -1, timeout: 1000, onProgressCallback: onProgress })
         await this._oplog.join(log)
         await this._updateIndex()
         this.events.emit('replicated', this.address.toString())

@@ -234,11 +234,22 @@ class Store {
       this.events.emit('load', this.address.toString(), heads)
     }
 
-    await mapSeries(heads, async (head) => {
-      this._recalculateReplicationMax(head.clock.time)
-      const log = await Log.fromEntryHash(this._ipfs, this.identity, head.hash, { logId: this._oplog.id, access: this.access, sortFn: this.options.sortFn, length: amount, exclude: this._oplog.values, onProgressCallback: this._onLoadProgress.bind(this), timeout: fetchEntryTimeout })
-      await this._oplog.join(log, amount)
+    // Update the replication status from the heads
+    heads.forEach(h => this._recalculateReplicationMax(h.clock.time))
+
+    // Load the log
+    const log = await Log.fromEntryHash(this._ipfs, this.identity, heads.map(e => e.hash), {
+      logId: this._oplog.id,
+      access: this.access,
+      sortFn: this.options.sortFn,
+      length: amount,
+      exclude: this._oplog.values,
+      onProgressCallback: this._onLoadProgress.bind(this),
+      timeout: fetchEntryTimeout
     })
+
+    // Join the log with the existing log
+    await this._oplog.join(log, amount)
 
     // Update the index
     if (heads.length > 0) {

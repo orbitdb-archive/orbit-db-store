@@ -113,6 +113,10 @@ class Replicator extends EventEmitter {
   stop () {
     // Clears the queue flusher
     clearInterval(this._flushTimer)
+    // Remove event listeners
+    this.removeAllListeners('load.added')
+    this.removeAllListeners('load.end')
+    this.removeAllListeners('load.progress')
   }
 
   _addToQueue (entry) {

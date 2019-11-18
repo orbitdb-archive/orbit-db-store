@@ -234,11 +234,22 @@ class Store {
       this.events.emit('load', this.address.toString(), heads)
     }
 
-    await mapSeries(heads, async (head) => {
-      this._recalculateReplicationMax(head.clock.time)
-      const log = await Log.fromEntryHash(this._ipfs, this.identity, head.hash, { logId: this._oplog.id, access: this.access, sortFn: this.options.sortFn, length: amount, exclude: this._oplog.values, onProgressCallback: this._onLoadProgress.bind(this), timeout: fetchEntryTimeout })
-      await this._oplog.join(log, amount)
+    // Update the replication status from the heads
+    heads.forEach(h => this._recalculateReplicationMax(h.clock.time))
+
+    // Load the log
+    const log = await Log.fromEntryHash(this._ipfs, this.identity, heads.map(e => e.hash), {
+      logId: this._oplog.id,
+      access: this.access,
+      sortFn: this.options.sortFn,
+      length: amount,
+      exclude: this._oplog.values,
+      onProgressCallback: this._onLoadProgress.bind(this),
+      timeout: fetchEntryTimeout
     })
+
+    // Join the log with the existing log
+    await this._oplog.join(log, amount)
 
     // Update the index
     if (heads.length > 0) {
@@ -280,7 +291,7 @@ class Store {
       const logEntry = Object.assign({}, head)
       logEntry.hash = null
       const codec = logEntry.v === 0 ? 'dag-pb' : 'dag-cbor'
-      const hash = await dagNode.write(this._ipfs, codec, logEntry, { links: ['next'], onlyHash: true })
+      const hash = await dagNode.write(this._ipfs, codec, logEntry, { links: ['next', 'refs'], onlyHash: true })
 
       if (hash !== head.hash) {
         console.warn('"WARNING! Head hash didn\'t match the contents')

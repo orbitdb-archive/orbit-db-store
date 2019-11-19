@@ -288,10 +288,9 @@ class Store {
         return Promise.resolve(null)
       }
 
-      const logEntry = Object.assign({}, head)
-      logEntry.hash = null
+      const logEntry = Entry.toEntry(head)
       const codec = logEntry.v === 0 ? 'dag-pb' : 'dag-cbor'
-      const hash = await dagNode.write(this._ipfs, codec, logEntry, { links: ['next', 'refs'], onlyHash: true })
+      const hash = await dagNode.write(this._ipfs, codec, logEntry, { links: Entry.IPLD_LINKS, onlyHash: true })
 
       if (hash !== head.hash) {
         console.warn('"WARNING! Head hash didn\'t match the contents')

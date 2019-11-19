@@ -5,6 +5,7 @@ const EventEmitter = require('events').EventEmitter
 const Readable = require('readable-stream')
 const mapSeries = require('p-each-series')
 const Log = require('ipfs-log')
+const Entry = Log.Entry
 const Index = require('./Index')
 const Replicator = require('./Replicator')
 const ReplicationInfo = require('./replication-info')

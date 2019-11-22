@@ -26,7 +26,10 @@ const DefaultOptions = {
 }
 
 class Store {
-  constructor (ipfs, identity, address, options) {
+  constructor (ipfs, identities, identity, address, options) {
+    if (!identities) {
+      throw new Error('Identities required')
+    }
     if (!identity) {
       throw new Error('Identity required')
     }
@@ -41,6 +44,7 @@ class Store {
 
     // Create IDs, names and paths
     this.id = address.toString()
+    this.identities = identities
     this.identity = identity
     this.address = address
     this.dbname = address.path || ''
@@ -63,7 +67,7 @@ class Store {
     this.access = options.accessController || defaultAccess
 
     // Create the operations log
-    this._oplog = new Log(this._ipfs, this.identity, { logId: this.id, access: this.access, sortFn: this.options.sortFn })
+    this._oplog = new Log(this._ipfs, this.identity, this.identities, { logId: this.id, access: this.access, sortFn: this.options.sortFn })
 
     // Create the index
     this._index = new this.options.Index(this.address.root)
@@ -215,7 +219,7 @@ class Store {
 
     // Reset
     this._index = new this.options.Index(this.address.root)
-    this._oplog = new Log(this._ipfs, this.identity, { logId: this.id, access: this.access, sortFn: this.options.sortFn })
+    this._oplog = new Log(this._ipfs, this.identity, this.identities, { logId: this.id, access: this.access, sortFn: this.options.sortFn })
     this._cache = this.options.cache
   }
 
@@ -238,7 +242,7 @@ class Store {
     heads.forEach(h => this._recalculateReplicationMax(h.clock.time))
 
     // Load the log
-    const log = await Log.fromEntryHash(this._ipfs, this.identity, heads.map(e => e.hash), {
+    const log = await Log.fromEntryHash(this._ipfs, this.identity, this.identities, heads.map(e => e.hash), {
       logId: this._oplog.id,
       access: this.access,
       sortFn: this.options.sortFn,
@@ -279,19 +283,21 @@ class Store {
         return Promise.resolve(null)
       }
 
-      const identityProvider = this.identity.provider
-      if (!identityProvider) throw new Error('Identity-provider is required, cannot verify entry')
-
-      const canAppend = await this.access.canAppend(head, identityProvider)
+      const canAppend = await this.access.canAppend(head)
       if (!canAppend) {
         console.warn('Warning: Given input entry is not allowed in this log and was discarded (no write access).')
         return Promise.resolve(null)
       }
 
-      const logEntry = Object.assign({}, head)
-      logEntry.hash = null
-      const codec = logEntry.v === 0 ? 'dag-pb' : 'dag-cbor'
-      const hash = await dagNode.write(this._ipfs, codec, logEntry, { links: ['next', 'refs'], onlyHash: true })
+      const validIdentity = await this.identities.verifyIdentity(head)
+      if (!validIdentity) {
+        console.warn('Warning: Given input entry is invalid and was discarded (identity invalid).')
+        return Promise.resolve(null)
+      }
+
+
+      const logEntry = Entry.toEntry(head)
+      const hash = await dagNode.write(this._ipfs, Entry.getWriteFormat(logEntry), logEntry, { links: Entry.IPLD_LINKS, onlyHash: true })
 
       if (hash !== head.hash) {
         console.warn('"WARNING! Head hash didn\'t match the contents')
@@ -438,7 +444,7 @@ class Store {
       const snapshotData = await loadSnapshotData()
       this._recalculateReplicationMax(snapshotData.values.reduce(maxClock, 0))
       if (snapshotData) {
-        const log = await Log.fromJSON(this._ipfs, this.identity, snapshotData, { access: this.access, sortFn: this.options.sortFn, length: -1, timeout: 1000, onProgressCallback: onProgress })
+        const log = await Log.fromJSON(this._ipfs, this.identity, this.identities, snapshotData, { access: this.access, sortFn: this.options.sortFn, length: -1, timeout: 1000, onProgressCallback: onProgress })
         await this._oplog.join(log)
         await this._updateIndex()
         this.events.emit('replicated', this.address.toString())
@@ -470,14 +476,16 @@ class Store {
     }
   }
 
-  async _addOperation (data, batchOperation, lastOperation, onProgressCallback) {
+  async _addOperation (data, batchOperation, lastOperation, onProgressCallback, options = {}) {
+    const identity = options.identity || this.identity
+    const identities = options.identities || this.identities
     if (this._oplog) {
       // check local cache?
       if (this.options.syncLocal) {
         await this.syncLocal()
       }
 
-      const entry = await this._oplog.append(data, this.options.referenceCount)
+      const entry = await this._oplog.append(data, this.options.referenceCount, { identity, identities })
       this._recalculateReplicationStatus(this.replicationStatus.progress + 1, entry.clock.time)
       await this._cache.set(this.localHeadsPath, [entry])
       await this._updateIndex()

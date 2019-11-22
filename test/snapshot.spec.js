@@ -36,13 +36,13 @@ Object.keys(testAPIs).forEach((IPFS) => {
 
       cacheStore = await storage.createStore('cache')
       const cache = new Cache(cacheStore)
-
-      testIdentity = await IdentityProvider.createIdentity({ id: 'userA', keystore })
+      const identities = new IdentityProvider({ keystore })
+      testIdentity = await identities.createIdentity({ id: 'userA' })
       ipfs = await startIpfs(IPFS, ipfsConfig)
 
       const address = 'test-address'
       const options = Object.assign({}, DefaultOptions, { cache })
-      store = new Store(ipfs, testIdentity, address, options)
+      store = new Store(ipfs, identities, testIdentity, address, options)
     })
 
     after(async () => {

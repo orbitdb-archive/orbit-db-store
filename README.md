@@ -54,6 +54,10 @@ console.log(db.address.toString())
 // /orbitdb/zdpuB383kQWjyCd5nv4FKqZwe2FH4nqxBBE7kzoDrmdtZ6GPu/databaseName
 ```
 
+##### `identities`
+
+Each store has an `identities` property containing the keystore used with this store to sign and verify entries.
+
 ##### `identity`
 
 Each store has an `identity` property containing the public key used with this store to sign and access entries. This `publicKey` property of `identity` is the peer/node/user key.
@@ -153,9 +157,9 @@ const Store         = require('orbit-db-store');
 const KeyValueIndex = require('./KeyValueIndex');
 
 class KeyValueStore extends Store {
-  constructor(ipfs, identity, dbname, options) {
+  constructor(ipfs, identities, identity, dbname, options) {
     Object.assign(options || {}, { Index: KeyValueIndex });
-    super(ipfs, identity, dbname, options)
+    super(ipfs, identities, identity, dbname, options)
   }
 
   get(key) {

@@ -5,6 +5,7 @@ const EventEmitter = require('events').EventEmitter
 const Readable = require('readable-stream')
 const mapSeries = require('p-each-series')
 const Log = require('ipfs-log')
+const Entry = Log.Entry
 const Index = require('./Index')
 const Replicator = require('./Replicator')
 const ReplicationInfo = require('./replication-info')
@@ -289,12 +290,11 @@ class Store {
         return Promise.resolve(null)
       }
 
-      const validIdentity = await this.identities.verifyIdentity(head)
+      const validIdentity = head.v > 0 ? await this.identities.verifyIdentity(head.identity) : true
       if (!validIdentity) {
         console.warn('Warning: Given input entry is invalid and was discarded (identity invalid).')
         return Promise.resolve(null)
       }
-
 
       const logEntry = Entry.toEntry(head)
       const hash = await dagNode.write(this._ipfs, Entry.getWriteFormat(logEntry), logEntry, { links: Entry.IPLD_LINKS, onlyHash: true })

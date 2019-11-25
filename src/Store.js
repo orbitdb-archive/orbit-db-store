@@ -160,9 +160,10 @@ class Store {
     return this._replicationStatus
   }
 
-  setIdentity (identity) {
+  setIdentity (identity, identities) {
     this.identity = identity
-    this._oplog.setIdentity(identity)
+    this.identities = identities || this.identities
+    this._oplog.setIdentity(identity, identities)
   }
 
   async close () {

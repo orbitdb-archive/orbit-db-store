@@ -22,9 +22,9 @@
   "author": "Haad",
   "license": "MIT",
   "dependencies": {
-    "ipfs-log": "~4.4.0",
+    "ipfs-log": "orbitdb/ipfs-log",
     "logplease": "^1.2.14",
-    "orbit-db-io": "~0.1.1",
+    "orbit-db-io": "~0.2.0",
     "p-each-series": "^1.0.0",
     "p-map": "^3.0.0",
     "readable-stream": "~2.3.5"
@@ -46,7 +46,7 @@
     "mocha": "^6.2.0",
     "mocha-headless-chrome": "^2.0.3",
     "orbit-db-cache": "~0.3.0",
-    "orbit-db-identity-provider": "~0.2.0",
+    "orbit-db-identity-provider": "~0.3.0",
     "orbit-db-keystore": "~0.3.0",
     "orbit-db-storage-adapter": "^0.4.2",
     "orbit-db-test-utils": "^0.7.5",

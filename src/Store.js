@@ -5,6 +5,7 @@ const EventEmitter = require('events').EventEmitter
 const Readable = require('readable-stream')
 const mapSeries = require('p-each-series')
 const Log = require('ipfs-log')
+const Entry = Log.Entry
 const Index = require('./Index')
 const Replicator = require('./Replicator')
 const ReplicationInfo = require('./replication-info')
@@ -12,7 +13,7 @@ const ReplicationInfo = require('./replication-info')
 const Logger = require('logplease')
 const logger = Logger.create('orbit-db.store', { color: Logger.Colors.Blue })
 Logger.setLogLevel('ERROR')
-const dagNode = require('orbit-db-io')
+const io = require('orbit-db-io')
 
 const DefaultOptions = {
   Index: Index,
@@ -288,10 +289,8 @@ class Store {
         return Promise.resolve(null)
       }
 
-      const logEntry = Object.assign({}, head)
-      logEntry.hash = null
-      const codec = logEntry.v === 0 ? 'dag-pb' : 'dag-cbor'
-      const hash = await dagNode.write(this._ipfs, codec, logEntry, { links: ['next', 'refs'], onlyHash: true })
+      const logEntry = Entry.toEntry(head)
+      const hash = await io.write(this._ipfs, Entry.getWriteFormat(logEntry), logEntry, { links: Entry.IPLD_LINKS, onlyHash: true })
 
       if (hash !== head.hash) {
         console.warn('"WARNING! Head hash didn\'t match the contents')

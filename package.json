@@ -22,7 +22,7 @@
   "author": "Haad",
   "license": "MIT",
   "dependencies": {
-    "ipfs-log": "orbitdb/ipfs-log",
+    "ipfs-log": "~4.5.0",
     "logplease": "^1.2.14",
     "orbit-db-io": "~0.2.0",
     "p-each-series": "^1.0.0",

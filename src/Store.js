@@ -469,7 +469,7 @@ class Store {
     }
   }
 
-  async _addOperation (data, batchOperation, lastOperation, onProgressCallback) {
+  async _addOperation (data, { onProgressCallback } = {}) {
     if (this._oplog) {
       // check local cache?
       if (this.options.syncLocal) {

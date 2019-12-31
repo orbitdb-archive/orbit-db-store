@@ -3,6 +3,7 @@
 const glob = require('glob')
 const webpack = require('webpack')
 const path = require('path')
+const NodePolyfillPlugin = require('node-polyfill-webpack-plugin')
 
 module.exports = {
   // TODO: put all tests in a .js file that webpack can use as entry point
@@ -13,19 +14,17 @@ module.exports = {
   target: 'web',
   mode: 'production',
   devtool: 'source-map',
-  node: {
-    child_process: 'empty'
-  },
   plugins: [
     new webpack.DefinePlugin({
       'process.env': {
         NODE_ENV: JSON.stringify(process.env.NODE_ENV)
       }
     }),
-    new webpack.IgnorePlugin(/mongo|redis/)
+    new webpack.IgnorePlugin(/mongo|redis/),
+    new NodePolyfillPlugin()
   ],
   externals: {
-    fs: '{}',
+    fs: '{ existsSync: () => true }',
     fatfs: '{}',
     runtimejs: '{}',
     rimraf: '{ sync: () => {} }',
@@ -37,14 +36,18 @@ module.exports = {
     modules: [
       'node_modules',
       path.resolve(__dirname, '../node_modules')
-    ]
+    ],
+    fallback: {
+      assert: require.resolve('assert/'),
+      path: require.resolve('path-browserify'),
+      stream: require.resolve('stream-browserify')
+    }
   },
   resolveLoader: {
     modules: [
       'node_modules',
       path.resolve(__dirname, '../node_modules')
-    ],
-    moduleExtensions: ['-loader']
+    ]
   },
   module: {
     rules: [
@@ -57,7 +60,11 @@ module.exports = {
             presets: [
               ['@babel/preset-env', { modules: false }]
             ],
-            plugins: ['@babel/syntax-object-rest-spread', '@babel/transform-runtime', '@babel/plugin-transform-modules-commonjs']
+            plugins: [
+              '@babel/syntax-object-rest-spread',
+              '@babel/transform-runtime',
+              '@babel/plugin-transform-modules-commonjs'
+            ]
           }
         }
       },

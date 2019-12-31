@@ -1,6 +1,6 @@
 'use strict'
 
-var assert = require('assert')
+const assert = require('assert')
 const Store = require('../src/Store')
 
 const Cache = require('orbit-db-cache')
@@ -13,16 +13,14 @@ const {
   config,
   testAPIs,
   startIpfs,
-  stopIpfs,
-  implementations
+  stopIpfs
 } = require('orbit-db-test-utils')
 
-const properLevelModule = implementations.filter(i => i.key.indexOf('memdown') > -1).map(i => i.module)[0]
-const storage = require('orbit-db-storage-adapter')(properLevelModule)
+const storage = require('orbit-db-storage-adapter')(require('memdown'))
 
 Object.keys(testAPIs).forEach((IPFS) => {
   describe(`Snapshots ${IPFS}`, function () {
-    let ipfs, testIdentity, identityStore, store, cacheStore
+    let ipfsd, ipfs, testIdentity, identityStore, store, cacheStore
 
     this.timeout(config.timeout)
 
@@ -38,7 +36,8 @@ Object.keys(testAPIs).forEach((IPFS) => {
       const cache = new Cache(cacheStore)
 
       testIdentity = await IdentityProvider.createIdentity({ id: 'userA', keystore })
-      ipfs = await startIpfs(IPFS, ipfsConfig)
+      ipfsd = await startIpfs(IPFS, ipfsConfig.daemon1)
+      ipfs = ipfsd.api
 
       const address = 'test-address'
       const options = Object.assign({}, DefaultOptions, { cache })
@@ -47,7 +46,7 @@ Object.keys(testAPIs).forEach((IPFS) => {
 
     after(async () => {
       await store.close()
-      await stopIpfs(ipfs)
+      await stopIpfs(ipfsd)
       await identityStore.close()
       await cacheStore.close()
     })

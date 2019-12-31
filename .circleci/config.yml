@@ -2,13 +2,13 @@
 version: 2.1
 
 executors:
-  node10-browsers:
+  lts-browsers:
     docker:
-      - image: circleci/node:10-browsers
+      - image: circleci/node:lts-browsers
 
 jobs:
   setup:
-    executor: node10-browsers
+    executor: lts-browsers
     steps:
       - checkout
       - run: mkdir -p /tmp/workspace
@@ -25,19 +25,19 @@ jobs:
             - conf
             - package.json
   test-node:
-    executor: node10-browsers
+    executor: lts-browsers
     steps:
       - attach_workspace:
           at: ./
       - run: npm run test:node
   test-browser:
-    executor: node10-browsers
+    executor: lts-browsers
     steps:
       - attach_workspace:
           at: ./
       - run: npm run test:browser
   build:
-    executor: node10-browsers
+    executor: lts-browsers
     steps:
       - attach_workspace:
           at: ./

@@ -1,15 +1,16 @@
 {
   "name": "orbit-db-store",
-  "version": "3.0.0",
+  "version": "4.2.0",
   "description": "Base class for orbit-db data stores",
   "main": "src/Store.js",
   "scripts": {
     "test": "npm run test:node && npm run test:browser",
-    "test:node": "TEST=all mocha",
+    "test:node": "TEST=go mocha; TEST=js nyc mocha",
     "test:browser": "npm run build:tests && mocha-headless-chrome -f ./test/browser/index.html -a no-sandbox",
     "build": "npm run build:dist",
-    "build:dist": "webpack --config ./conf/webpack.config.js --display-modules --sort-modules-by size --mode production",
-    "build:tests": "webpack --config ./conf/webpack.tests.config.js --mode production",
+    "build:dist": "webpack --config ./conf/webpack.config.js --mode production",
+    "build:docs": "markdown-toc --no-first1 -i README.md",
+    "build:tests": "webpack --config ./conf/webpack.tests.config.js --mode development",
     "lint": "standard"
   },
   "repository": {
@@ -17,17 +18,18 @@
     "url": "https://github.com/orbitdb/orbit-db-store"
   },
   "engines": {
-    "node": ">=8.0.0"
+    "node": ">=14.0.0"
   },
   "author": "Haad",
   "license": "MIT",
   "dependencies": {
-    "ipfs-log": "~4.5.0",
+    "ipfs-log": "github:orbitdb/ipfs-log#fix/rpc-2",
+    "it-to-stream": "^1.0.0",
     "logplease": "^1.2.14",
-    "orbit-db-io": "~0.2.0",
-    "p-each-series": "^1.0.0",
-    "p-map": "^3.0.0",
-    "readable-stream": "~2.3.5"
+    "p-each-series": "^2.1.0",
+    "p-map": "^4.0.0",
+    "p-queue": "^6.6.2",
+    "readable-stream": "~3.6.0"
   },
   "standard": {
     "env": [
@@ -35,25 +37,40 @@
     ]
   },
   "devDependencies": {
-    "@babel/core": "^7.4.5",
+    "@babel/core": "^7.11.4",
     "@babel/plugin-syntax-object-rest-spread": "^7.2.0",
-    "@babel/plugin-transform-modules-commonjs": "^7.4.4",
-    "@babel/plugin-transform-runtime": "^7.4.4",
-    "@babel/preset-env": "^7.4.5",
-    "@babel/runtime": "^7.4.5",
-    "babel-loader": "~8.0.4",
+    "@babel/plugin-transform-runtime": "^7.15.0",
+    "@babel/preset-env": "^7.11.0",
+    "@babel/runtime": "^7.11.2",
+    "assert": "^2.0.0",
+    "babel-loader": "^8.2.2",
+    "eslint": "^7.32.0",
+    "go-ipfs": "^0.9.1",
+    "ipfs": "^0.58.2",
+    "ipfsd-ctl": "^10.0.3",
     "json-loader": "~0.5.7",
-    "mocha": "^6.2.0",
-    "mocha-headless-chrome": "^2.0.3",
+    "markdown-toc": "^1.2.0",
+    "memdown": "^6.0.0",
+    "mocha": "^8.1.1",
+    "mocha-headless-chrome": "^3.1.0",
+    "node-polyfill-webpack-plugin": "^1.1.4",
+    "node-pre-gyp": "^0.13.0",
+    "nyc": "^15.1.0",
     "orbit-db-cache": "~0.3.0",
-    "orbit-db-identity-provider": "~0.3.0",
-    "orbit-db-keystore": "~0.3.0",
-    "orbit-db-storage-adapter": "^0.4.2",
-    "orbit-db-test-utils": "^0.7.5",
+    "orbit-db-identity-provider": "~0.3.1",
+    "orbit-db-io": "^1.0.1",
+    "orbit-db-keystore": "~0.3.5",
+    "orbit-db-storage-adapter": "^0.6.0",
+    "orbit-db-test-utils": "^1.3.0",
+    "path-browserify": "^1.0.1",
     "rimraf": "^3.0.0",
-    "standard": "^14.0.2",
-    "webpack": "^4.39.2",
-    "webpack-cli": "^3.3.7"
+    "standard": "^16.0.3",
+    "stream-browserify": "^3.0.0",
+    "webpack": "^5.37.1",
+    "webpack-cli": "^4.7.0"
+  },
+  "peerDependencies": {
+    "orbit-db-io": "*"
   },
   "localMaintainers": [
     "haad <haad@haja.io>",

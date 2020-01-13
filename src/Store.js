@@ -262,16 +262,17 @@ class Store {
     const saved = await mapSeries(heads, saveToIpfs)
     await this._replicator.load(saved.filter(e => e !== null))
 
-    return new Promise(resolve => {
-      this.events.on('replicate.progress', (address, hash, entry, progress, have) => {
-        if (progress === have) {
-          this.events.on('replicated', resolve)
+    if (this._replicator._buffer.length || Object.values(this._replicator._queue).length) {
+      return new Promise(resolve => {
+        const progressHandler = (address, hash, entry, progress, have) => {
+          if (progress === have) {
+            this.events.off('replicate.progress', progressHandler)
+            this.events.once('replicated', resolve)
+          }
         }
+        this.events.on('replicate.progress', progressHandler)
       })
-      if (!this._replicator._buffer.length && !Object.values(this._replicator._queue).length) {
-        resolve()
-      }
-    })
+    }
   }
 
   loadMoreFrom (amount, entries) {

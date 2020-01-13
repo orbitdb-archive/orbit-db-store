@@ -93,7 +93,10 @@ class Replicator extends EventEmitter {
     Process new heads.
    */
   load (entries) {
-    const notKnown = entry => !this._store._oplog.has(entry.hash || entry) && !this._queue[entry.hash || entry]
+    const notKnown = entry => {
+      const hash = entry.hash || entry
+      return !this._store._oplog.has(hash) && !this._fetching[hash] && !this._queue[hash]
+    }
 
     try {
       entries
@@ -110,15 +113,14 @@ class Replicator extends EventEmitter {
   stop () {
     // Clears the queue flusher
     clearInterval(this._flushTimer)
+    // Remove event listeners
+    this.removeAllListeners('load.added')
+    this.removeAllListeners('load.end')
+    this.removeAllListeners('load.progress')
   }
 
   _addToQueue (entry) {
     const hash = entry.hash || entry
-
-    if (this._store._oplog.has(hash) || this._fetching[hash] || this._queue[hash]) {
-      return
-    }
-
     this._stats.tasksRequested += 1
     this._queue[hash] = entry
   }
@@ -163,7 +165,7 @@ class Replicator extends EventEmitter {
     this._stats.tasksStarted += 1
 
     const exclude = []
-    const log = await Log.fromEntryHash(this._store._ipfs, this._store.access, this._store.identity, hash, this._store._oplog.id, batchSize, exclude)
+    const log = await Log.fromEntryHash(this._store._ipfs, this._store.identity, hash, { logId: this._store._oplog.id, access: this._store.access, length: batchSize, exclude })
     this._buffer.push(log)
 
     const latest = log.values[0]

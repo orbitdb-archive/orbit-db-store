@@ -260,7 +260,7 @@ class Store {
     this.events.emit('ready', this.address.toString(), this._oplog.heads)
   }
 
-  sync (heads) {
+  async sync (heads) {
     this._stats.syncRequestsReceieved += 1
     logger.debug(`Sync request #${this._stats.syncRequestsReceieved} ${heads.length}`)
     if (heads.length === 0) {
@@ -299,10 +299,20 @@ class Store {
       return head
     }
 
-    return mapSeries(heads, saveToIpfs)
-      .then(async (saved) => {
-        return this._replicator.load(saved.filter(e => e !== null))
+    const saved = await mapSeries(heads, saveToIpfs)
+    await this._replicator.load(saved.filter(e => e !== null))
+
+    if (this._replicator._buffer.length || Object.values(this._replicator._queue).length) {
+      return new Promise(resolve => {
+        const progressHandler = (address, hash, entry, progress, have) => {
+          if (progress === have) {
+            this.events.off('replicate.progress', progressHandler)
+            this.events.once('replicated', resolve)
+          }
+        }
+        this.events.on('replicate.progress', progressHandler)
       })
+    }
   }
 
   loadMoreFrom (amount, entries) {

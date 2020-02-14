@@ -27,6 +27,7 @@
     "orbit-db-io": "~0.2.0",
     "p-each-series": "^1.0.0",
     "p-map": "^3.0.0",
+    "p-queue": "^6.2.1",
     "readable-stream": "~2.3.5"
   },
   "standard": {

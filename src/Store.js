@@ -4,6 +4,8 @@ const path = require('path')
 const EventEmitter = require('events').EventEmitter
 const Readable = require('readable-stream')
 const mapSeries = require('p-each-series')
+const { default: PQueue } = require('p-queue')
+const queue = new PQueue({ concurrency: 1 })
 const Log = require('ipfs-log')
 const Entry = Log.Entry
 const Index = require('./Index')
@@ -165,6 +167,8 @@ class Store {
     if (this.options.onClose) {
       await this.options.onClose(this)
     }
+
+    await queue.onEmpty()
 
     // Replicator teardown logic
     this._replicator.stop()
@@ -480,20 +484,22 @@ class Store {
   }
 
   async _addOperation (data, { onProgressCallback, pin = false } = {}) {
-    if (this._oplog) {
-      // check local cache?
-      if (this.options.syncLocal) {
-        await this.syncLocal()
-      }
+    return queue.add(async () => {
+      if (this._oplog) {
+        // check local cache?
+        if (this.options.syncLocal) {
+          await this.syncLocal()
+        }
 
-      const entry = await this._oplog.append(data, this.options.referenceCount, pin)
-      this._recalculateReplicationStatus(this.replicationStatus.progress + 1, entry.clock.time)
-      await this._cache.set(this.localHeadsPath, [entry])
-      await this._updateIndex()
-      this.events.emit('write', this.address.toString(), entry, this._oplog.heads)
-      if (onProgressCallback) onProgressCallback(entry)
-      return entry.hash
-    }
+        const entry = await this._oplog.append(data, this.options.referenceCount, pin)
+        this._recalculateReplicationStatus(this.replicationStatus.progress + 1, entry.clock.time)
+        await this._cache.set(this.localHeadsPath, [entry])
+        await this._updateIndex()
+        this.events.emit('write', this.address.toString(), entry, this._oplog.heads)
+        if (onProgressCallback) onProgressCallback(entry)
+        return entry.hash
+      }
+    })
   }
 
   _addOperationBatch (data, batchOperation, lastOperation, onProgressCallback) {

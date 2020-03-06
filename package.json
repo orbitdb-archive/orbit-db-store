@@ -1,6 +1,6 @@
 {
   "name": "orbit-db-store",
-  "version": "3.0.0",
+  "version": "3.0.1",
   "description": "Base class for orbit-db data stores",
   "main": "src/Store.js",
   "scripts": {
@@ -23,6 +23,7 @@
   "license": "MIT",
   "dependencies": {
     "ipfs-log": "~4.5.0",
+    "it-to-stream": "^0.1.1",
     "logplease": "^1.2.14",
     "orbit-db-io": "~0.2.0",
     "p-each-series": "^1.0.0",

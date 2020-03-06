@@ -351,11 +351,11 @@ class Store {
 
     let snapshot = this._ipfs.files.add ? await this._ipfs.files.add(buf) : await this._ipfs.add(buf)
 
-    if (!Array.isArray(snapshot)) {  // js-ipfs >= 0.41, ipfs.add returns an async iterable
+    if (!Array.isArray(snapshot)) { // js-ipfs >= 0.41, ipfs.add returns an async iterable
       // convert AsyncIterable to Array
       const arr = []
       for await (const e of snapshot) {
-        e.hash = e.cid.toString()  // js-ipfs >= 0.41, ipfs.add results contain a cid property (a CID instance) instead of a string hash property
+        e.hash = e.cid.toString() // js-ipfs >= 0.41, ipfs.add results contain a cid property (a CID instance) instead of a string hash property
         arr.push(e)
       }
       snapshot = arr
@@ -385,11 +385,11 @@ class Store {
 
     if (snapshot) {
       const res =
-        this._ipfs.files.catReadableStream ?
-          await this._ipfs.files.catReadableStream(snapshot.hash)
-          : this._ipfs.catReadableStream ?
-            await this._ipfs.catReadableStream(snapshot.hash)
-            : toStream.readable(this._ipfs.cat(snapshot.hash))  // js-ipfs >= 0.41, catReadableStream has been removed 
+        this._ipfs.files.catReadableStream
+          ? await this._ipfs.files.catReadableStream(snapshot.hash)
+          : this._ipfs.catReadableStream
+            ? await this._ipfs.catReadableStream(snapshot.hash)
+            : toStream.readable(this._ipfs.cat(snapshot.hash)) // js-ipfs >= 0.41, catReadableStream has been removed
 
       const loadSnapshotData = () => {
         return new Promise((resolve, reject) => {

@@ -3,6 +3,7 @@
 const path = require('path')
 const EventEmitter = require('events').EventEmitter
 const Readable = require('readable-stream')
+const toStream = require('it-to-stream')
 const mapSeries = require('p-each-series')
 const Log = require('ipfs-log')
 const Entry = Log.Entry
@@ -345,7 +346,20 @@ class Store {
     snapshotData.values.forEach(addToStream)
     rs.push(null) // tell the stream we're finished
 
-    const snapshot = this._ipfs.files.add ? await this._ipfs.files.add(rs) : await this._ipfs.add(rs)
+    // js-ipfs >= 0.41, ipfs.add doesn't accept a Readable Stream
+    const buf = rs.read(Infinity)
+
+    let snapshot = this._ipfs.files.add ? await this._ipfs.files.add(buf) : await this._ipfs.add(buf)
+
+    if (!Array.isArray(snapshot)) { // js-ipfs >= 0.41, ipfs.add returns an async iterable
+      // convert AsyncIterable to Array
+      const arr = []
+      for await (const e of snapshot) {
+        e.hash = e.cid.toString() // js-ipfs >= 0.41, ipfs.add results contain a cid property (a CID instance) instead of a string hash property
+        arr.push(e)
+      }
+      snapshot = arr
+    }
 
     await this._cache.set(this.snapshotPath, snapshot[snapshot.length - 1])
     await this._cache.set(this.queuePath, unfinished)
@@ -370,7 +384,13 @@ class Store {
     const snapshot = await this._cache.get(this.snapshotPath)
 
     if (snapshot) {
-      const res = this._ipfs.files.catReadableStream ? await this._ipfs.files.catReadableStream(snapshot.hash) : await this._ipfs.catReadableStream(snapshot.hash)
+      const res =
+        this._ipfs.files.catReadableStream
+          ? await this._ipfs.files.catReadableStream(snapshot.hash)
+          : this._ipfs.catReadableStream
+            ? await this._ipfs.catReadableStream(snapshot.hash)
+            : toStream.readable(this._ipfs.cat(snapshot.hash)) // js-ipfs >= 0.41, catReadableStream has been removed
+
       const loadSnapshotData = () => {
         return new Promise((resolve, reject) => {
           let buf = Buffer.alloc(0)

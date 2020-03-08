@@ -129,6 +129,12 @@ class Store {
     } catch (e) {
       console.error('Store Error:', e)
     }
+    this.events.on("replicated.progress", (address, hash, entry, progress, have) => {
+      this._procEntry(entry);
+    });
+    this.events.on("write", (address, entry, heads) => {
+      this._procEntry(entry);
+    });
   }
 
   get all () {
@@ -518,6 +524,11 @@ class Store {
 
   _addOperationBatch (data, batchOperation, lastOperation, onProgressCallback) {
     throw new Error('Not implemented!')
+  }
+  
+  _procEntry(entry) {
+    var { op, value } = entry.payload;
+    this.events.emit(`oplog.${op}`, value);
   }
 
   _onLoadProgress (hash, entry, progress, total) {

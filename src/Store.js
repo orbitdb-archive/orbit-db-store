@@ -528,7 +528,11 @@ class Store {
   
   _procEntry(entry) {
     var { op, value } = entry.payload;
-    this.events.emit(`oplog.${op}`, value);
+    if(op) {
+      this.events.emit(`oplog.${op}`, value);
+    } else {
+      this.events.emit(`oplog.noop`, value)
+    }
   }
 
   _onLoadProgress (hash, entry, progress, total) {

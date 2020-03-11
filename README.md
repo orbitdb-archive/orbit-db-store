@@ -128,6 +128,12 @@ console.log(db.replicationStatus)
     ```javascript
     db.events.on('write', (id, hash, entry) => ... )
     ```
+  - `log.op.${operation}` - (entry)
+  
+    Emitted after an entry was added to the database regardless of whether the entry is added remotely, or locally. `${operation}` is replaced with a specified oplog operation. `none` is specified to listen for a oplog entry without an operation specified. The supported operations are diagrammed in the entry payload.
+    ```javascript
+    db.events.on('log.op.ADD', (id, hash, payload) => ... )
+    ```
 
 #### Private methods
 

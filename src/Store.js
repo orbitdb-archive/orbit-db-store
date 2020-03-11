@@ -188,14 +188,9 @@ class Store {
     }
 
     // Remove all event listeners
-    this.events.removeAllListeners('load')
-    this.events.removeAllListeners('load.progress')
-    this.events.removeAllListeners('replicate')
-    this.events.removeAllListeners('replicate.progress')
-    this.events.removeAllListeners('replicated')
-    this.events.removeAllListeners('ready')
-    this.events.removeAllListeners('write')
-    this.events.removeAllListeners('peer')
+    for(var event in this.events._events) {
+      this.events.removeAllListeners(event);
+    }
 
     // Database is now closed
     // TODO: afaik we don't use 'closed' event anymore,
@@ -527,11 +522,12 @@ class Store {
   }
   
   _procEntry(entry) {
-    var { op, value } = entry.payload;
+    var { payload, hash } = entry;
+    var { op } = payload;
     if(op) {
-      this.events.emit(`oplog.${op}`, value);
+      this.events.emit(`log.op.${op}`, this.address.toString(), hash, payload);
     } else {
-      this.events.emit(`oplog.noop`, value)
+      this.events.emit(`log.op.none`, this.address.toString(), hash, payload);
     }
   }
 

@@ -5,7 +5,6 @@ const EventEmitter = require('events').EventEmitter
 const Readable = require('readable-stream')
 const mapSeries = require('p-each-series')
 const { default: PQueue } = require('p-queue')
-const queue = new PQueue({ concurrency: 1 })
 const Log = require('ipfs-log')
 const Entry = Log.Entry
 const Index = require('./Index')
@@ -67,6 +66,9 @@ class Store {
 
     // Create the operations log
     this._oplog = new Log(this._ipfs, this.identity, { logId: this.id, access: this.access, sortFn: this.options.sortFn })
+
+    // _addOperation queue
+    this._opqueue = new PQueue({ concurrency: 1 })
 
     // Create the index
     this._index = new this.options.Index(this.address.root)
@@ -168,7 +170,7 @@ class Store {
       await this.options.onClose(this)
     }
 
-    await queue.onEmpty()
+    await this._opqueue.onEmpty()
 
     // Replicator teardown logic
     this._replicator.stop()
@@ -484,7 +486,7 @@ class Store {
   }
 
   async _addOperation (data, { onProgressCallback, pin = false } = {}) {
-    return queue.add(async () => {
+    return this._opqueue.add(async () => {
       if (this._oplog) {
         // check local cache?
         if (this.options.syncLocal) {

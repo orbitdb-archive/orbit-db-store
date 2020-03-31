@@ -486,7 +486,7 @@ class Store {
   }
 
   async _addOperation (data, { onProgressCallback, pin = false } = {}) {
-    return this._opqueue.add(async () => {
+    async function addOperation () {
       if (this._oplog) {
         // check local cache?
         if (this.options.syncLocal) {
@@ -501,7 +501,8 @@ class Store {
         if (onProgressCallback) onProgressCallback(entry)
         return entry.hash
       }
-    })
+    }
+    return this._opqueue.add(addOperation.bind(this))
   }
 
   _addOperationBatch (data, batchOperation, lastOperation, onProgressCallback) {

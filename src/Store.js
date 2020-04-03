@@ -5,6 +5,7 @@ const EventEmitter = require('events').EventEmitter
 const Readable = require('readable-stream')
 const toStream = require('it-to-stream')
 const mapSeries = require('p-each-series')
+const { default: PQueue } = require('p-queue')
 const Log = require('ipfs-log')
 const Entry = Log.Entry
 const Index = require('./Index')
@@ -66,6 +67,9 @@ class Store {
 
     // Create the operations log
     this._oplog = new Log(this._ipfs, this.identity, { logId: this.id, access: this.access, sortFn: this.options.sortFn })
+
+    // _addOperation queue
+    this._opqueue = new PQueue({ concurrency: 1 })
 
     // Create the index
     this._index = new this.options.Index(this.address.root)
@@ -166,6 +170,8 @@ class Store {
     if (this.options.onClose) {
       await this.options.onClose(this)
     }
+
+    await this._opqueue.onEmpty()
 
     // Replicator teardown logic
     this._replicator.stop()
@@ -500,20 +506,23 @@ class Store {
   }
 
   async _addOperation (data, { onProgressCallback, pin = false } = {}) {
-    if (this._oplog) {
-      // check local cache?
-      if (this.options.syncLocal) {
-        await this.syncLocal()
-      }
+    async function addOperation () {
+      if (this._oplog) {
+        // check local cache?
+        if (this.options.syncLocal) {
+          await this.syncLocal()
+        }
 
-      const entry = await this._oplog.append(data, this.options.referenceCount, pin)
-      this._recalculateReplicationStatus(this.replicationStatus.progress + 1, entry.clock.time)
-      await this._cache.set(this.localHeadsPath, [entry])
-      await this._updateIndex()
-      this.events.emit('write', this.address.toString(), entry, this._oplog.heads)
-      if (onProgressCallback) onProgressCallback(entry)
-      return entry.hash
+        const entry = await this._oplog.append(data, this.options.referenceCount, pin)
+        this._recalculateReplicationStatus(this.replicationStatus.progress + 1, entry.clock.time)
+        await this._cache.set(this.localHeadsPath, [entry])
+        await this._updateIndex()
+        this.events.emit('write', this.address.toString(), entry, this._oplog.heads)
+        if (onProgressCallback) onProgressCallback(entry)
+        return entry.hash
+      }
     }
+    return this._opqueue.add(addOperation.bind(this))
   }
 
   _addOperationBatch (data, batchOperation, lastOperation, onProgressCallback) {

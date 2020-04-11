@@ -171,7 +171,7 @@ class Store {
       await this.options.onClose(this)
     }
 
-    await this._opqueue.onEmpty()
+    await this._opqueue.onIdle()
 
     // Replicator teardown logic
     this._replicator.stop()

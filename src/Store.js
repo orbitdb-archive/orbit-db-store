@@ -1,7 +1,6 @@
 'use strict'
 
 const path = require('path')
-const EventEmitter = require('events').EventEmitter
 const Readable = require('readable-stream')
 const toStream = require('it-to-stream')
 const mapSeries = require('p-each-series')
@@ -28,6 +27,21 @@ const DefaultOptions = {
   sortFn: undefined
 }
 
+class EventEmitter extends require('events').EventEmitter {
+  constructor (db, parent, ...args) {
+    super(...args)
+    this._db = db
+    this._parent = parent
+  }
+
+  emit (type, ...args) {
+    super.emit(type, ...args)
+    if (this._parent && typeof this._parent.emit === 'function') {
+      this._parent.emit(type, this._db.address.toString(), ...args)
+    }
+  }
+}
+
 class Store {
   constructor (ipfs, identity, address, options) {
     if (!identity) {
@@ -47,7 +61,7 @@ class Store {
     this.identity = identity
     this.address = address
     this.dbname = address.path || ''
-    this.events = new EventEmitter()
+    this.events = new EventEmitter(this, options.eventEmitter)
 
     this.remoteHeadsPath = path.join(this.id, '_remoteHeads')
     this.localHeadsPath = path.join(this.id, '_localHeads')

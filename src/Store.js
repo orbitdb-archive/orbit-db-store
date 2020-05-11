@@ -538,6 +538,7 @@ class Store {
     } else {
       this.events.emit(`log.op.none`, this.address.toString(), hash, payload);
     }
+    this.events.emit('log.op', op, this.address.toString(), hash, payload)
   }
 
   _onLoadProgress (hash, entry, progress, total) {

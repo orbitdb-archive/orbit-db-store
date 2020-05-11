@@ -133,6 +133,12 @@ class Store {
     } catch (e) {
       console.error('Store Error:', e)
     }
+    this.events.on("replicated.progress", (address, hash, entry, progress, have) => {
+      this._procEntry(entry);
+    });
+    this.events.on("write", (address, entry, heads) => {
+      this._procEntry(entry);
+    });
   }
 
   get all () {
@@ -188,14 +194,9 @@ class Store {
     }
 
     // Remove all event listeners
-    this.events.removeAllListeners('load')
-    this.events.removeAllListeners('load.progress')
-    this.events.removeAllListeners('replicate')
-    this.events.removeAllListeners('replicate.progress')
-    this.events.removeAllListeners('replicated')
-    this.events.removeAllListeners('ready')
-    this.events.removeAllListeners('write')
-    this.events.removeAllListeners('peer')
+    for(var event in this.events._events) {
+      this.events.removeAllListeners(event);
+    }
 
     // Database is now closed
     // TODO: afaik we don't use 'closed' event anymore,
@@ -527,6 +528,17 @@ class Store {
 
   _addOperationBatch (data, batchOperation, lastOperation, onProgressCallback) {
     throw new Error('Not implemented!')
+  }
+  
+  _procEntry(entry) {
+    var { payload, hash } = entry;
+    var { op } = payload;
+    if(op) {
+      this.events.emit(`log.op.${op}`, this.address.toString(), hash, payload);
+    } else {
+      this.events.emit(`log.op.none`, this.address.toString(), hash, payload);
+    }
+    this.events.emit('log.op', op, this.address.toString(), hash, payload)
   }
 
   _onLoadProgress (hash, entry, progress, total) {

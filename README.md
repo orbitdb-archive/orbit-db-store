@@ -20,10 +20,11 @@ Base class for [orbit-db](https://github.com/orbitdb/orbit-db) data stores. You 
 <!-- toc -->
 
 - [API](#api)
-  * [constructor(ipfs, peerId, address, options)](#constructoripfs-peerid-address-options)
+  * [constructor(ipfs, identity, address, options)](#constructoripfs-identity-address-options)
   * [Public methods](#public-methods)
-    + [load([amount])](#loadamount)
+    + [load([amount], [opts])](#loadamount-opts)
     + [loadMoreFrom(amount, entries)](#loadmorefromamount-entries)
+    + [setIdentity (identity)](#setidentity-identity)
     + [saveSnapshot()](#savesnapshot)
     + [loadFromSnapshot()](#loadfromsnapshot)
     + [close()](#close)
@@ -31,13 +32,13 @@ Base class for [orbit-db](https://github.com/orbitdb/orbit-db) data stores. You 
     + [sync(heads)](#syncheads)
   * [Properties](#properties)
     + [address](#address)
-    + [key](#key)
+    + [identity](#identity)
     + [all](#all)
     + [type](#type)
     + [replicationStatus](#replicationstatus)
   * [Events](#events)
   * [Private methods](#private-methods)
-    + [_addOperation(data)](#_addoperationdata)
+    + [_addOperation(data, [options])](#_addoperationdata-options)
   * [Creating Custom Data Stores](#creating-custom-data-stores)
 - [Contributing](#contributing)
 - [License](#license)
@@ -58,17 +59,22 @@ Base class for [orbit-db](https://github.com/orbitdb/orbit-db) data stores. You 
 the following properties are optional:
 
 - `maxHistory` (Integer): The number of entries to load (Default: `-1`).
+- `syncLocal` (Boolean): Load local database before performing any append operations. (Default: `false`).
+- `fetchEntryTimeout` (Integer): The number in `ms` specifying a timeout when fetching entries from IPFS. (Default: `null`).
 - `referenceCount` (Integer): The number of previous ipfs-log entries a new entry should reference (Default: `64`).
 - `replicationConcurrency` (Integer): The number of concurrent replication processes (Default: `128`).
 - `accessController` (Object): An instance of AccessController with the following [interface](https://github.com/orbitdb/orbit-db-access-controllers/blob/master/src/access-controller-interface.js). See [orbit-db-access-controllers](https://github.com/orbitdb/orbit-db-access-controllers) for more information on how to create custom access controllers. By default only the owner will have write access.
+- `sortFn` (Function): A function used to sort ipfs-log entries (Default: `undefined`).
 - `onClose` (Function): A function to be called with a string of the OrbitDB address of the database that is closing.
+- `onDrop` (Function): A function to be called with the orbit-db-store instance when the database is being removed.
+- `onLoad` (Function): A function to be called with the orbit-db-store instance when the database is being loaded.
 
 ### Public methods
 
-#### load([amount])
+#### load([amount], [opts])
 > Load the database using locally persisted state.
 
-Returns a **Promise** that resolves once complete. Provide an `amount` argument to specify how many entries to load.
+Returns a **Promise** that resolves once complete. Provide an optional `amount` argument to specify how many entries to load. By default the `maxHistory` option is used. Provide an optional `options` object with a `fetchEntryTimeout` property to be used when loading entries from IPFS.
 
 #### loadMoreFrom(amount, entries)
 > TODO
@@ -77,6 +83,10 @@ Returns a **Promise** that resolves once complete. Provide an `amount` argument 
 //TODO
 db.loadMoreFrom()
 ```
+
+#### setIdentity (identity)
+> Set the identity for the database
+
 
 #### saveSnapshot()
 > Save the current state of the database locally.
@@ -119,7 +129,7 @@ console.log(db.address.toString())
 // /orbitdb/zdpuB383kQWjyCd5nv4FKqZwe2FH4nqxBBE7kzoDrmdtZ6GPu/databaseName
 ```
 
-##### `identity`
+#### identity
 
 Each store has an `identity` property containing the public key used with this store to sign and access entries. This `publicKey` property of `identity` is the peer/node/user key.
 
@@ -230,10 +240,13 @@ console.log(db.replicationStatus)
 
 ### Private methods
 
-#### _addOperation(data)
+#### `_addOperation(data, [options])`
 > Add an entry to the store.
 
-Returns a **Promise** that resolves to the IPFS Multihash of the added entry. Takes `data` as a parameter which can be of any type.
+Returns a **Promise** that resolves to the IPFS Multihash of the added entry. Takes `data` as a parameter which can be of any type. Provide an optional `options` arguement, which is an object with the following properties:
+
+- `onProgressCallback` (Function): To be called once the data is appended.
+- `pin` (Boolean): To specify whether or not to pin the entry in IPFS. (Default: `false`).
 
 ```javascript
 this._addOperation({

@@ -21,7 +21,6 @@ const DefaultOptions = {
   Index: Index,
   maxHistory: -1,
   fetchEntryTimeout: null,
-  replicate: true,
   referenceCount: 32,
   replicationConcurrency: 128,
   syncLocal: false,
@@ -227,9 +226,13 @@ class Store {
     this._cache = this.options.cache
   }
 
-  async load (amount, { fetchEntryTimeout } = {}) {
+  async load (amount, opts = {}) {
+    if (typeof amount === 'object') {
+      opts = amount
+      amount = undefined
+    }
     amount = amount || this.options.maxHistory
-    fetchEntryTimeout = fetchEntryTimeout || this.options.fetchEntryTimeout
+    const fetchEntryTimeout = opts.fetchEntryTimeout || this.options.fetchEntryTimeout
 
     if (this.options.onLoad) {
       await this.options.onLoad(this)
@@ -380,7 +383,7 @@ class Store {
       await this.options.onLoad(this)
     }
 
-    this.events.emit('load', this.address.toString()) //TODO: inconsistent params
+    this.events.emit('load', this.address.toString()) // TODO emits inconsistent params, missing heads param
 
     const maxClock = (res, val) => Math.max(res, val.clock.time)
 
@@ -476,7 +479,7 @@ class Store {
         const log = await Log.fromJSON(this._ipfs, this.identity, snapshotData, { access: this.access, sortFn: this.options.sortFn, length: -1, timeout: 1000, onProgressCallback: onProgress })
         await this._oplog.join(log)
         await this._updateIndex()
-        this.events.emit('replicated', this.address.toString()) //TODO: inconsistent params, line 116
+        this.events.emit('replicated', this.address.toString()) // TODO: inconsistent params, count param not emited
       }
       this.events.emit('ready', this.address.toString(), this._oplog.heads)
     } else {

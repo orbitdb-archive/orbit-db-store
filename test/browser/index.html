@@ -9,12 +9,12 @@
 <div id="mocha"></div>
 
 <script>
-    mocha.setup("bdd");
+  mocha.setup({ ui: "bdd", globals: ['sprintf', 'vsprintf'] });
 </script>
 <script src="./bundle.js"></script>
 <script>
-    mocha.checkLeaks()
-    mocha.run();
+  mocha.checkLeaks()
+  mocha.run();
 </script>
 
 </body>

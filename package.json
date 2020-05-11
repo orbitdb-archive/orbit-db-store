@@ -1,6 +1,6 @@
 {
   "name": "orbit-db-store",
-  "version": "3.2.0",
+  "version": "3.3.0",
   "description": "Base class for orbit-db data stores",
   "main": "src/Store.js",
   "scripts": {
@@ -22,7 +22,7 @@
   "author": "Haad",
   "license": "MIT",
   "dependencies": {
-    "ipfs-log": "~4.5.0",
+    "ipfs-log": "~4.6.0",
     "it-to-stream": "^0.1.1",
     "logplease": "^1.2.14",
     "orbit-db-io": "~0.2.0",
@@ -51,7 +51,7 @@
     "orbit-db-identity-provider": "~0.3.0",
     "orbit-db-keystore": "~0.3.0",
     "orbit-db-storage-adapter": "^0.4.2",
-    "orbit-db-test-utils": "^0.8.5",
+    "orbit-db-test-utils": "^0.9.2",
     "rimraf": "^3.0.0",
     "standard": "^14.0.2",
     "webpack": "^4.39.2",

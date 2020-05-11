@@ -25,7 +25,7 @@ module.exports = {
     new webpack.IgnorePlugin(/mongo|redis/)
   ],
   externals: {
-    fs: '{}',
+    fs: '{ existsSync: () => true }',
     fatfs: '{}',
     runtimejs: '{}',
     rimraf: '{ sync: () => {} }',

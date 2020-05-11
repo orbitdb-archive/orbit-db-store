@@ -133,12 +133,12 @@ class Store {
     } catch (e) {
       console.error('Store Error:', e)
     }
-    this.events.on("replicated.progress", (address, hash, entry, progress, have) => {
-      this._procEntry(entry);
-    });
-    this.events.on("write", (address, entry, heads) => {
-      this._procEntry(entry);
-    });
+    this.events.on('replicated.progress', (address, hash, entry, progress, have) => {
+      this._procEntry(entry)
+    })
+    this.events.on('write', (address, entry, heads) => {
+      this._procEntry(entry)
+    })
   }
 
   get all () {
@@ -194,8 +194,8 @@ class Store {
     }
 
     // Remove all event listeners
-    for(var event in this.events._events) {
-      this.events.removeAllListeners(event);
+    for (var event in this.events._events) {
+      this.events.removeAllListeners(event)
     }
 
     // Database is now closed
@@ -529,14 +529,14 @@ class Store {
   _addOperationBatch (data, batchOperation, lastOperation, onProgressCallback) {
     throw new Error('Not implemented!')
   }
-  
-  _procEntry(entry) {
-    var { payload, hash } = entry;
-    var { op } = payload;
-    if(op) {
-      this.events.emit(`log.op.${op}`, this.address.toString(), hash, payload);
+
+  _procEntry (entry) {
+    var { payload, hash } = entry
+    var { op } = payload
+    if (op) {
+      this.events.emit(`log.op.${op}`, this.address.toString(), hash, payload)
     } else {
-      this.events.emit(`log.op.none`, this.address.toString(), hash, payload);
+      this.events.emit('log.op.none', this.address.toString(), hash, payload)
     }
     this.events.emit('log.op', op, this.address.toString(), hash, payload)
   }

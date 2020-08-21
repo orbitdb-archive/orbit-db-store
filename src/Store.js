@@ -356,9 +356,7 @@ class Store {
     // js-ipfs >= 0.41, ipfs.add doesn't accept a Readable Stream
     const buf = rs.read(Infinity)
 
-    let snapshot = this._ipfs.files.add ? await this._ipfs.files.add(buf) : await this._ipfs.add(buf)
-
-    console.log(snapshot)
+    const snapshot = this._ipfs.files.add ? await this._ipfs.files.add(buf) : await this._ipfs.add(buf)
 
     // if (!Array.isArray(snapshot)) { // js-ipfs >= 0.41, ipfs.add returns an async iterable
     //   // convert AsyncIterable to Array

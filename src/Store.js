@@ -358,20 +358,23 @@ class Store {
 
     let snapshot = this._ipfs.files.add ? await this._ipfs.files.add(buf) : await this._ipfs.add(buf)
 
-    if (!Array.isArray(snapshot)) { // js-ipfs >= 0.41, ipfs.add returns an async iterable
-      // convert AsyncIterable to Array
-      const arr = []
-      for await (const e of snapshot) {
-        e.hash = e.cid.toString() // js-ipfs >= 0.41, ipfs.add results contain a cid property (a CID instance) instead of a string hash property
-        arr.push(e)
-      }
-      snapshot = arr
-    }
+    console.log(snapshot)
 
-    await this._cache.set(this.snapshotPath, snapshot[snapshot.length - 1])
+    // if (!Array.isArray(snapshot)) { // js-ipfs >= 0.41, ipfs.add returns an async iterable
+    //   // convert AsyncIterable to Array
+    //   const arr = []
+    //   for await (const e of snapshot) {
+    //     e.hash = e.cid.toString() // js-ipfs >= 0.41, ipfs.add results contain a cid property (a CID instance) instead of a string hash property
+    //     arr.push(e)
+    //   }
+    //   snapshot = [arr]
+    // }
+
+    snapshot.hash = snapshot.cid.toString() // js-ipfs >= 0.41, ipfs.add results contain a cid property (a CID instance) instead of a string hash property
+    await this._cache.set(this.snapshotPath, snapshot)
     await this._cache.set(this.queuePath, unfinished)
 
-    logger.debug(`Saved snapshot: ${snapshot[snapshot.length - 1].hash}, queue length: ${unfinished.length}`)
+    logger.debug(`Saved snapshot: ${snapshot.hash}, queue length: ${unfinished.length}`)
 
     return snapshot
   }

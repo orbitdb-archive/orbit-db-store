@@ -23,14 +23,14 @@
   "author": "Haad",
   "license": "MIT",
   "dependencies": {
-    "ipfs-log": "~4.6.0",
-    "it-to-stream": "^0.1.1",
+    "ipfs-log": "~4.6.2",
+    "it-to-stream": "^0.1.2",
     "logplease": "^1.2.14",
     "orbit-db-io": "~0.2.0",
-    "p-each-series": "^1.0.0",
-    "p-map": "^3.0.0",
-    "p-queue": "^6.2.1",
-    "readable-stream": "~2.3.5"
+    "p-each-series": "^2.1.0",
+    "p-map": "^4.0.0",
+    "p-queue": "^6.6.1",
+    "readable-stream": "~3.6.0"
   },
   "standard": {
     "env": [
@@ -38,26 +38,26 @@
     ]
   },
   "devDependencies": {
-    "@babel/core": "^7.4.5",
+    "@babel/core": "^7.11.4",
     "@babel/plugin-syntax-object-rest-spread": "^7.2.0",
-    "@babel/plugin-transform-modules-commonjs": "^7.4.4",
-    "@babel/plugin-transform-runtime": "^7.4.4",
-    "@babel/preset-env": "^7.4.5",
-    "@babel/runtime": "^7.4.5",
-    "babel-loader": "~8.0.4",
+    "@babel/plugin-transform-modules-commonjs": "^7.10.4",
+    "@babel/plugin-transform-runtime": "^7.11.0",
+    "@babel/preset-env": "^7.11.0",
+    "@babel/runtime": "^7.11.2",
+    "babel-loader": "~8.1.0",
     "json-loader": "~0.5.7",
     "markdown-toc": "^1.2.0",
-    "mocha": "^6.2.0",
-    "mocha-headless-chrome": "^2.0.3",
+    "mocha": "^8.1.1",
+    "mocha-headless-chrome": "^3.1.0",
     "orbit-db-cache": "~0.3.0",
-    "orbit-db-identity-provider": "~0.3.0",
-    "orbit-db-keystore": "~0.3.0",
-    "orbit-db-storage-adapter": "^0.4.2",
-    "orbit-db-test-utils": "^0.9.2",
+    "orbit-db-identity-provider": "~0.3.1",
+    "orbit-db-keystore": "~0.3.5",
+    "orbit-db-storage-adapter": "^0.5.3",
+    "orbit-db-test-utils": "^0.10.2",
     "rimraf": "^3.0.0",
     "standard": "^14.0.2",
-    "webpack": "^4.39.2",
-    "webpack-cli": "^3.3.7"
+    "webpack": "^4.44.1",
+    "webpack-cli": "^3.3.12"
   },
   "localMaintainers": [
     "haad <haad@haja.io>",

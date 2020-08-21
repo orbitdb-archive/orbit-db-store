@@ -374,7 +374,7 @@ class Store {
 
     logger.debug(`Saved snapshot: ${snapshot.hash}, queue length: ${unfinished.length}`)
 
-    return snapshot
+    return [snapshot]
   }
 
   async loadFromSnapshot (onProgressCallback) {

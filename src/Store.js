@@ -2,8 +2,6 @@
 
 const path = require('path')
 const EventEmitter = require('events').EventEmitter
-const Readable = require('readable-stream')
-const toStream = require('it-to-stream')
 const mapSeries = require('p-each-series')
 const { default: PQueue } = require('p-queue')
 const Log = require('ipfs-log')
@@ -334,30 +332,13 @@ class Store {
     const unfinished = this._replicator.getQueue()
 
     const snapshotData = this._oplog.toSnapshot()
-    const header = Buffer.from(JSON.stringify({
+    const buf = Buffer.from(JSON.stringify({
       id: snapshotData.id,
       heads: snapshotData.heads,
       size: snapshotData.values.length,
+      values: snapshotData.values,
       type: this.type
     }))
-    const rs = new Readable()
-    const size = new Uint16Array([header.length])
-    const bytes = Buffer.from(size.buffer)
-    rs.push(bytes)
-    rs.push(header)
-
-    const addToStream = (val) => {
-      const str = Buffer.from(JSON.stringify(val))
-      const size = new Uint16Array([str.length])
-      rs.push(Buffer.from(size.buffer))
-      rs.push(str)
-    }
-
-    snapshotData.values.forEach(addToStream)
-    rs.push(null) // tell the stream we're finished
-
-    // js-ipfs >= 0.41, ipfs.add doesn't accept a Readable Stream
-    const buf = rs.read(Infinity)
 
     const snapshot = await this._ipfs.add(buf)
 
@@ -385,78 +366,12 @@ class Store {
     const snapshot = await this._cache.get(this.snapshotPath)
 
     if (snapshot) {
-      const res =
-        this._ipfs.files.catReadableStream
-          ? await this._ipfs.files.catReadableStream(snapshot.hash)
-          : this._ipfs.catReadableStream
-            ? await this._ipfs.catReadableStream(snapshot.hash)
-            : toStream.readable(this._ipfs.cat(snapshot.hash)) // js-ipfs >= 0.41, catReadableStream has been removed
-
-      const loadSnapshotData = () => {
-        return new Promise((resolve, reject) => {
-          let buf = Buffer.alloc(0)
-          let q = []
-
-          const bufferData = (d) => {
-            this._byteSize += d.length
-            if (q.length < 20000) {
-              q.push(d)
-            } else {
-              const a = Buffer.concat(q)
-              buf = Buffer.concat([buf, a])
-              q = []
-            }
-          }
-
-          const done = () => {
-            if (q.length > 0) {
-              const a = Buffer.concat(q)
-              buf = Buffer.concat([buf, a])
-            }
-
-            function toArrayBuffer (buf) {
-              var ab = new ArrayBuffer(buf.length)
-              var view = new Uint8Array(ab)
-              for (var i = 0; i < buf.length; ++i) {
-                view[i] = buf[i]
-              }
-              return ab
-            }
-
-            const headerSize = parseInt(new Uint16Array(toArrayBuffer(buf.slice(0, 2))))
-            let header
-
-            try {
-              header = JSON.parse(buf.slice(2, headerSize + 2))
-            } catch (e) {
-              // TODO
-            }
-
-            const values = []
-            let a = 2 + headerSize
-            while (a < buf.length) {
-              const s = parseInt(new Uint16Array(toArrayBuffer(buf.slice(a, a + 2))))
-              a += 2
-              const data = buf.slice(a, a + s)
-              try {
-                const d = JSON.parse(data)
-                values.push(d)
-              } catch (e) {
-              }
-              a += s
-            }
-
-            if (header) {
-              this._type = header.type
-              resolve({ values: values, id: header.id, heads: header.heads, type: header.type })
-            } else {
-              resolve({ values: values, id: null, heads: null, type: null })
-            }
-          }
-          res.on('data', bufferData)
-          res.on('end', done)
-        })
+      const chunks = []
+      for await (const chunk of this._ipfs.cat(snapshot.hash)) {
+        chunks.push(chunk)
       }
+      const buffer = Buffer.concat(chunks)
+      const snapshotData = JSON.parse(buffer.toString())
 
       const onProgress = (hash, entry, count, total) => {
         this._recalculateReplicationStatus(count, entry.clock.time)
@@ -465,7 +380,6 @@ class Store {
 
       // Fetch the entries
       // Timeout 1 sec to only load entries that are already fetched (in order to not get stuck at loading)
-      const snapshotData = await loadSnapshotData()
       this._recalculateReplicationMax(snapshotData.values.reduce(maxClock, 0))
       if (snapshotData) {
         const log = await Log.fromJSON(this._ipfs, this.identity, snapshotData, { access: this.access, sortFn: this.options.sortFn, length: -1, timeout: 1000, onProgressCallback: onProgress })

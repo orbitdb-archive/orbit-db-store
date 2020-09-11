@@ -1,6 +1,6 @@
 {
   "name": "orbit-db-store",
-  "version": "4.0.0",
+  "version": "3.5.0",
   "description": "Base class for orbit-db data stores",
   "main": "src/Store.js",
   "scripts": {
@@ -18,7 +18,7 @@
     "url": "https://github.com/orbitdb/orbit-db-store"
   },
   "engines": {
-    "node": ">=8.0.0"
+    "node": ">=12.0.0"
   },
   "author": "Haad",
   "license": "MIT",

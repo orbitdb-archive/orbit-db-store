@@ -50,7 +50,7 @@ Object.keys(testAPIs).forEach((IPFS) => {
       const cache = new Cache(cacheStore)
 
       testIdentity = await IdentityProvider.createIdentity({ id: 'userA', keystore })
-      ipfsd = await startIpfs(IPFS, ipfsConfig)
+      ipfsd = await startIpfs(IPFS, ipfsConfig.daemon1)
       ipfs = ipfsd.api
 
       const address = 'test-address'

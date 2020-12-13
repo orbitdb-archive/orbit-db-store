@@ -107,12 +107,8 @@ Object.keys(testAPIs).forEach((IPFS) => {
           assert.strictEqual(replicator.tasksQueued, 0)
           // assert.strictEqual(replicator.tasksFinished, replicated)
           for (const replicatedLog of replicatedLogs) {
-            // console.log(replicatedLog.values.length, log.values.length, replicatedLog.values[0])
             await log.join(replicatedLog)
           }
-          // console.log(log.values.length)
-          // console.log(log.values[0].payload)
-          // console.log(log.values.map(e => e.payload).join('\n'))
 
           if (log.values.length === logLength) {
             assert.deepStrictEqual(log.values, log2.values)

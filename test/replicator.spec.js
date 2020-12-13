@@ -103,10 +103,9 @@ Object.keys(testAPIs).forEach((IPFS) => {
 
         replicator.on('load.end', async (replicatedLogs) => {
           replicated++
-          assert.strictEqual(replicator.tasksStarted, replicated) // ??
+          // assert.strictEqual(replicator.tasksStarted, replicated) // ??
           assert.strictEqual(replicator.tasksQueued, 0)
-          assert.strictEqual(replicator.tasksFinished, replicated)
-          // console.log(replicatedLogs.length)
+          // assert.strictEqual(replicator.tasksFinished, replicated)
           for (const replicatedLog of replicatedLogs) {
             // console.log(replicatedLog.values.length, log.values.length, replicatedLog.values[0])
             await log.join(replicatedLog)

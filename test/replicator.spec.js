@@ -89,7 +89,7 @@ Object.keys(testAPIs).forEach((IPFS) => {
       })
 
       it('loads', (done) => {
-        let replicated = 0
+        // let replicated = 0
 
         assert.strictEqual(log.id, log2.id)
 
@@ -102,7 +102,7 @@ Object.keys(testAPIs).forEach((IPFS) => {
         assert.strictEqual(replicator.tasksStarted, 0) // ??
 
         replicator.on('load.end', async (replicatedLogs) => {
-          replicated++
+          // replicated++
           // assert.strictEqual(replicator.tasksStarted, replicated) // ??
           assert.strictEqual(replicator.tasksQueued, 0)
           // assert.strictEqual(replicator.tasksFinished, replicated)

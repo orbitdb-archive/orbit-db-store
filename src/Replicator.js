@@ -6,8 +6,8 @@ const Logger = require('logplease')
 const logger = Logger.create('replicator', { color: Logger.Colors.Cyan })
 Logger.setLogLevel('ERROR')
 
-const getNext = e => e.next
-const flatMap = (res, val) => res.concat(val)
+const nextRefsIntersection = e => [...new Set([...e.next, e.refs])]
+const flatMap = (res, val) => res.concat(...val)
 const notNull = entry => entry !== null && entry !== undefined
 const uniqueValues = (res, val) => {
   res[val] = val
@@ -180,7 +180,8 @@ class Replicator extends EventEmitter {
     this.emit('load.progress', this._id, hash, latest, null, this._buffer.length)
 
     // Return all next pointers
-    return log.values.map(getNext).reduce(flatMap, [])
+    const refsPointers = log.values.map(nextRefsIntersection).reduce(flatMap, [])
+    return refsPointers
   }
 }
 

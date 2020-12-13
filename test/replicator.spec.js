@@ -45,7 +45,7 @@ Object.keys(testAPIs).forEach((IPFS) => {
       log = new Log(ipfs, testIdentity)
 
       store = new DummyStore(log, ipfs, testIdentity)
-      replicator = new Replicator(store, 123)
+      replicator = new Replicator(store, 10)
     })
 
     after(async () => {
@@ -76,7 +76,7 @@ Object.keys(testAPIs).forEach((IPFS) => {
 
         console.log(`writing ${logLength} entries to the log`)
         for (let i = 0; i < logLength; i++) {
-          await log2.append(`entry${i}`)
+          await log2.append(`entry${i}`, 10)
         }
         assert(log2.values.length, logLength)
 

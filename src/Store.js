@@ -117,12 +117,15 @@ class Store {
           }
           this._replicationStatus.queued -= logs.length
           // this._replicationStatus.buffered = this._replicator._buffer.length
-          await this._updateIndex()
 
           // only store heads that has been verified and merges
           const heads = this._oplog.heads
           await this._cache.set(this.remoteHeadsPath, heads)
           logger.debug(`Saved heads ${heads.length} [${heads.map(e => e.hash).join(', ')}]`)
+
+          // update the store's index after joining the logs
+          // and persisting the latest heads
+          await this._updateIndex()
 
           this._recalculateReplicationMax(this._oplog.length)
           // this._recalculateReplicationProgress(this._oplog.length)
@@ -321,34 +324,8 @@ class Store {
 
     return mapSeries(heads, saveToIpfs)
       .then(async (saved) => {
-        // const onLoadCompleted = async (logs, have) => {
-        //   try {
-        //     for (const log of logs) {
-        //       await this._oplog.join(log)
-        //     }
-        //     this._replicationStatus.queued -= logs.length
-        //     this._replicationStatus.buffered = this._replicator._buffer.length
-        //     await this._updateIndex()
-
-        //     // only store heads that has been verified and merges
-        //     const heads = this._oplog.heads
-        //     await this._cache.set(this.remoteHeadsPath, heads)
-        //     logger.debug(`Saved heads ${heads.length} [${heads.map(e => e.hash).join(', ')}]`)
-
-        //     // logger.debug(`<replicated>`)
-        //     this.events.emit('replicated', this.address.toString(), logs.length)
-        //   } catch (e) {
-        //     console.error(e)
-        //   }
-        // }
-        // console.log("???? CONCURRENCY", this.options.replicationConcurrency)
-        // const exclude = []
-        // const hash = saved.filter(e => e !== null)[0].hash
-        // const log = await Log.fromEntryHash(this._ipfs, this.identity, hash, { logId: this._oplog.id, access: this.access, length: 10, concurrency: this.options.replicationConcurrency, exclude })
-        // await onLoadCompleted([log])
         return this._replicator.load(saved.filter(e => e !== null))
       })
-    }
   }
 
   loadMoreFrom (amount, entries) {
@@ -448,8 +425,7 @@ class Store {
         if (this.options.syncLocal) {
           await this.syncLocal()
         }
-
-
+      }
       const entry = await this._oplog.append(data, this.options.referenceCount, pin)
       this._recalculateReplicationStatus(0, entry.clock.time)
       await this._cache.set(this.localHeadsPath, [entry])

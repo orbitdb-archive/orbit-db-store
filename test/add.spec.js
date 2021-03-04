@@ -22,7 +22,7 @@ const storage = require('orbit-db-storage-adapter')(properLevelModule)
 
 Object.keys(testAPIs).forEach((IPFS) => {
   describe(`addOperation ${IPFS}`, function () {
-    let ipfs, testIdentity, identityStore, store, cacheStore
+    let ipfsd, ipfs, testIdentity, identityStore, store, cacheStore
 
     this.timeout(config.timeout)
 
@@ -38,7 +38,8 @@ Object.keys(testAPIs).forEach((IPFS) => {
       const cache = new Cache(cacheStore)
 
       testIdentity = await IdentityProvider.createIdentity({ id: 'userA', keystore })
-      ipfs = await startIpfs(IPFS, ipfsConfig)
+      ipfsd = await startIpfs(IPFS, ipfsConfig.daemon1)
+      ipfs = ipfsd.api
 
       const address = 'test-address'
       const options = Object.assign({}, DefaultOptions, { cache })
@@ -47,7 +48,7 @@ Object.keys(testAPIs).forEach((IPFS) => {
 
     after(async () => {
       await store.close()
-      await stopIpfs(ipfs)
+      await stopIpfs(ipfsd)
       await identityStore.close()
       await cacheStore.close()
     })

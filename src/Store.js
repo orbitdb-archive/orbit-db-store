@@ -2,8 +2,8 @@
 
 const path = require('path')
 const EventEmitter = require('events').EventEmitter
-const Readable = require('readable-stream')
 const mapSeries = require('p-each-series')
+const { default: PQueue } = require('p-queue')
 const Log = require('ipfs-log')
 const Entry = Log.Entry
 const Index = require('./Index')
@@ -19,7 +19,6 @@ const DefaultOptions = {
   Index: Index,
   maxHistory: -1,
   fetchEntryTimeout: null,
-  replicate: true,
   referenceCount: 32,
   replicationConcurrency: 32,
   syncLocal: false,
@@ -65,6 +64,9 @@ class Store {
 
     // Create the operations log
     this._oplog = new Log(this._ipfs, this.identity, { logId: this.id, access: this.access, sortFn: this.options.sortFn })
+
+    // _addOperation queue
+    this._opqueue = new PQueue({ concurrency: 1 })
 
     // Create the index
     this._index = new this.options.Index(this.address.root)
@@ -136,6 +138,12 @@ class Store {
     } catch (e) {
       console.error('Store Error:', e)
     }
+    this.events.on('replicated.progress', (address, hash, entry, progress, have) => {
+      this._procEntry(entry)
+    })
+    this.events.on('write', (address, entry, heads) => {
+      this._procEntry(entry)
+    })
   }
 
   get all () {
@@ -174,6 +182,8 @@ class Store {
       await this.options.onClose(this)
     }
 
+    await this._opqueue.onIdle()
+
     // Replicator teardown logic
     this._replicator.stop()
 
@@ -189,14 +199,9 @@ class Store {
     }
 
     // Remove all event listeners
-    this.events.removeAllListeners('load')
-    this.events.removeAllListeners('load.progress')
-    this.events.removeAllListeners('replicate')
-    this.events.removeAllListeners('replicate.progress')
-    this.events.removeAllListeners('replicated')
-    this.events.removeAllListeners('ready')
-    this.events.removeAllListeners('write')
-    this.events.removeAllListeners('peer')
+    for (var event in this.events._events) {
+      this.events.removeAllListeners(event)
+    }
 
     // Database is now closed
     // TODO: afaik we don't use 'closed' event anymore,
@@ -228,10 +233,14 @@ class Store {
     this._cache = this.options.cache
   }
 
-  async load (amount, { fetchEntryTimeout } = {}) {
-    this.loading = true
+  async load (amount, opts = {}) {
+    if (typeof amount === 'object') {
+      opts = amount
+      amount = undefined
+    }
     amount = amount || this.options.maxHistory
-    fetchEntryTimeout = fetchEntryTimeout || this.options.fetchEntryTimeout
+    const fetchEntryTimeout = opts.fetchEntryTimeout || this.options.fetchEntryTimeout
+    this.loading = true
 
     if (this.options.onLoad) {
       await this.options.onLoad(this)
@@ -271,7 +280,7 @@ class Store {
     this.events.emit('ready', this.address.toString(), this._oplog.heads)
   }
 
-  sync (heads) {
+  async sync (heads) {
     this._stats.syncRequestsReceieved += 1
     logger.debug(`Sync request #${this._stats.syncRequestsReceieved} ${heads.length}`)
     if (heads.length === 0) {
@@ -339,6 +348,7 @@ class Store {
         // await onLoadCompleted([log])
         return this._replicator.load(saved.filter(e => e !== null))
       })
+    }
   }
 
   loadMoreFrom (amount, entries) {
@@ -349,36 +359,23 @@ class Store {
     const unfinished = this._replicator.getQueue()
 
     const snapshotData = this._oplog.toSnapshot()
-    const header = Buffer.from(JSON.stringify({
+    const buf = Buffer.from(JSON.stringify({
       id: snapshotData.id,
       heads: snapshotData.heads,
       size: snapshotData.values.length,
+      values: snapshotData.values,
       type: this.type
     }))
-    const rs = new Readable()
-    const size = new Uint16Array([header.length])
-    const bytes = Buffer.from(size.buffer)
-    rs.push(bytes)
-    rs.push(header)
 
-    const addToStream = (val) => {
-      const str = Buffer.from(JSON.stringify(val))
-      const size = new Uint16Array([str.length])
-      rs.push(Buffer.from(size.buffer))
-      rs.push(str)
-    }
+    const snapshot = await this._ipfs.add(buf)
 
-    snapshotData.values.forEach(addToStream)
-    rs.push(null) // tell the stream we're finished
-
-    const snapshot = this._ipfs.files.add ? await this._ipfs.files.add(rs) : await this._ipfs.add(rs)
-
-    await this._cache.set(this.snapshotPath, snapshot[snapshot.length - 1])
+    snapshot.hash = snapshot.cid.toString() // js-ipfs >= 0.41, ipfs.add results contain a cid property (a CID instance) instead of a string hash property
+    await this._cache.set(this.snapshotPath, snapshot)
     await this._cache.set(this.queuePath, unfinished)
 
-    logger.debug(`Saved snapshot: ${snapshot[snapshot.length - 1].hash}, queue length: ${unfinished.length}`)
+    logger.debug(`Saved snapshot: ${snapshot.hash}, queue length: ${unfinished.length}`)
 
-    return snapshot
+    return [snapshot]
   }
 
   async loadFromSnapshot (onProgressCallback) {
@@ -386,7 +383,7 @@ class Store {
       await this.options.onLoad(this)
     }
 
-    this.events.emit('load', this.address.toString())
+    this.events.emit('load', this.address.toString()) // TODO emits inconsistent params, missing heads param
 
     const maxClock = (res, val) => Math.max(res, val.clock.time)
 
@@ -396,72 +393,12 @@ class Store {
     const snapshot = await this._cache.get(this.snapshotPath)
 
     if (snapshot) {
-      const res = this._ipfs.files.catReadableStream ? await this._ipfs.files.catReadableStream(snapshot.hash) : await this._ipfs.catReadableStream(snapshot.hash)
-      const loadSnapshotData = () => {
-        return new Promise((resolve, reject) => {
-          let buf = Buffer.alloc(0)
-          let q = []
-
-          const bufferData = (d) => {
-            this._byteSize += d.length
-            if (q.length < 20000) {
-              q.push(d)
-            } else {
-              const a = Buffer.concat(q)
-              buf = Buffer.concat([buf, a])
-              q = []
-            }
-          }
-
-          const done = () => {
-            if (q.length > 0) {
-              const a = Buffer.concat(q)
-              buf = Buffer.concat([buf, a])
-            }
-
-            function toArrayBuffer (buf) {
-              var ab = new ArrayBuffer(buf.length)
-              var view = new Uint8Array(ab)
-              for (var i = 0; i < buf.length; ++i) {
-                view[i] = buf[i]
-              }
-              return ab
-            }
-
-            const headerSize = parseInt(new Uint16Array(toArrayBuffer(buf.slice(0, 2))))
-            let header
-
-            try {
-              header = JSON.parse(buf.slice(2, headerSize + 2))
-            } catch (e) {
-              // TODO
-            }
-
-            const values = []
-            let a = 2 + headerSize
-            while (a < buf.length) {
-              const s = parseInt(new Uint16Array(toArrayBuffer(buf.slice(a, a + 2))))
-              a += 2
-              const data = buf.slice(a, a + s)
-              try {
-                const d = JSON.parse(data)
-                values.push(d)
-              } catch (e) {
-              }
-              a += s
-            }
-
-            if (header) {
-              this._type = header.type
-              resolve({ values: values, id: header.id, heads: header.heads, type: header.type })
-            } else {
-              resolve({ values: values, id: null, heads: null, type: null })
-            }
-          }
-          res.on('data', bufferData)
-          res.on('end', done)
-        })
+      const chunks = []
+      for await (const chunk of this._ipfs.cat(snapshot.hash)) {
+        chunks.push(chunk)
       }
+      const buffer = Buffer.concat(chunks)
+      const snapshotData = JSON.parse(buffer.toString())
 
       const onProgress = (hash, entry, count, total) => {
         this._recalculateReplicationStatus(count, entry.clock.time)
@@ -470,13 +407,12 @@ class Store {
 
       // Fetch the entries
       // Timeout 1 sec to only load entries that are already fetched (in order to not get stuck at loading)
-      const snapshotData = await loadSnapshotData()
       this._recalculateReplicationMax(snapshotData.values.reduce(maxClock, 0))
       if (snapshotData) {
         const log = await Log.fromJSON(this._ipfs, this.identity, snapshotData, { access: this.access, sortFn: this.options.sortFn, length: -1, timeout: 1000, onProgressCallback: onProgress })
         await this._oplog.join(log)
         await this._updateIndex()
-        this.events.emit('replicated', this.address.toString())
+        this.events.emit('replicated', this.address.toString()) // TODO: inconsistent params, count param not emited
       }
       this.events.emit('ready', this.address.toString(), this._oplog.heads)
     } else {
@@ -506,11 +442,13 @@ class Store {
   }
 
   async _addOperation (data, { onProgressCallback, pin = false } = {}) {
-    if (this._oplog) {
-      // check local cache?
-      if (this.options.syncLocal) {
-        await this.syncLocal()
-      }
+    async function addOperation () {
+      if (this._oplog) {
+        // check local cache?
+        if (this.options.syncLocal) {
+          await this.syncLocal()
+        }
+
 
       const entry = await this._oplog.append(data, this.options.referenceCount, pin)
       this._recalculateReplicationStatus(0, entry.clock.time)
@@ -518,12 +456,23 @@ class Store {
       await this._updateIndex()
       this.events.emit('write', this.address.toString(), entry, this._oplog.heads)
       if (onProgressCallback) onProgressCallback(entry)
-      return entry.hash
     }
+    return this._opqueue.add(addOperation.bind(this))
   }
 
   _addOperationBatch (data, batchOperation, lastOperation, onProgressCallback) {
     throw new Error('Not implemented!')
+  }
+
+  _procEntry (entry) {
+    var { payload, hash } = entry
+    var { op } = payload
+    if (op) {
+      this.events.emit(`log.op.${op}`, this.address.toString(), hash, payload)
+    } else {
+      this.events.emit('log.op.none', this.address.toString(), hash, payload)
+    }
+    this.events.emit('log.op', op, this.address.toString(), hash, payload)
   }
 
   _onLoadProgress (hash, entry, progress, total) {

@@ -74,7 +74,7 @@ Object.keys(testAPIs).forEach((IPFS) => {
         const testIdentity = await IdentityProvider.createIdentity({ id: 'userB', keystore, signingKeystore })
         log2 = new Log(ipfs2, testIdentity, { logId: log.id })
 
-        console.log(`writing ${logLength} entries to the log`)
+        // console.log(`writing ${logLength} entries to the log`)
         for (let i = 0; i < logLength; i++) {
           await log2.append(`entry${i}`)
         }
@@ -88,38 +88,47 @@ Object.keys(testAPIs).forEach((IPFS) => {
         await stopIpfs(ipfsd2)
       })
 
-      it('loads', (done) => {
-        let replicated = 0
-
+      it('replicates all entries in the log', async () => {
+        // let replicated = 0
         assert.strictEqual(log.id, log2.id)
 
         replicator.load(log2.heads)
 
-        assert.strictEqual(replicator._buffer.length, 0)
-        assert.deepStrictEqual(replicator.getQueue()[0], log2.heads[0])
-        assert.strictEqual(replicator.tasksQueued, 1)
-        assert.strictEqual(replicator.tasksRequested, 1)
-        assert.strictEqual(replicator.tasksStarted, 0) // ??
+        // assert.strictEqual(replicator._buffer.length, 0)
+        // assert.deepStrictEqual(replicator.getQueue()[0], log2.heads[0])
+        // assert.strictEqual(replicator.tasksQueued, 1)
+        // assert.strictEqual(replicator.tasksRequested, 1)
+        // assert.strictEqual(replicator.tasksStarted, 0) // ??
 
         replicator.on('load.end', async (replicatedLogs) => {
-          replicated++
-          assert.strictEqual(replicator.tasksStarted, replicated) // ??
-          assert.strictEqual(replicator.tasksQueued, 0)
-          assert.strictEqual(replicator.tasksFinished, replicated)
+          // replicated++
+          // assert.strictEqual(replicator.tasksStarted, replicated) // ??
+          // assert.strictEqual(replicator.tasksQueued, 0)
+          // assert.strictEqual(replicator.tasksFinished, replicated)
           // console.log(replicatedLogs.length)
           for (const replicatedLog of replicatedLogs) {
-            // console.log(replicatedLog.values.length, log.values.length, replicatedLog.values[0])
+            // console.log(replicatedLog.values.length, log.values.length, replicatedLog.values[0], replicatedLog.values[replicatedLog.values.length - 1])
             await log.join(replicatedLog)
           }
           // console.log(log.values.length)
           // console.log(log.values[0].payload)
           // console.log(log.values.map(e => e.payload).join('\n'))
-
-          if (log.values.length === logLength) {
-            assert.deepStrictEqual(log.values, log2.values)
-            done()
-          }
+          assert.strictEqual(log.values.length, logLength)
+          assert.deepStrictEqual(log.values, log2.values)
         })
+      })
+
+      /* TODO 👇 */
+      it.skip('replicates entries concurrently', async () => {
+      })
+
+      it.skip('fires progress events during replication', async () => {
+      })
+
+      it.skip('excludes known log entries from replication', async () => {
+      })
+
+      it.skip('cleans the internal state after replication', async () => {
       })
     })
   })

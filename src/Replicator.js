@@ -129,8 +129,10 @@ class Replicator extends EventEmitter {
           const logs = this._buffer.slice()
           this._buffer = []
           this._buffered = 0
-          // this.emit('load.end', logs)
-          await this.onLoadCompleted(logs)
+          if (this.onLoadCompleted) {
+            await this.onLoadCompleted(logs)
+          }
+          this.emit('load.end', logs)
         }
 
         nexts = nexts.reduce(flatMap, [])

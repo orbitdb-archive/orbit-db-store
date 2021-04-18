@@ -336,6 +336,41 @@ Usage:
 const Index = new Index(userId)
 ```
 
+#### How to implement your own Index
+```js
+'use strict'
+
+class KeyValueIndex {
+  constructor() {
+    this._index = {}
+  }
+
+  get(key) {
+    return this._index[key]
+  }
+
+  updateIndex(oplog) {
+    oplog.values
+      .slice()
+      .reverse()
+      .reduce((handled, item) => {
+        if(!handled.includes(item.payload.key)) {
+          handled.push(item.payload.key)
+          if(item.payload.op === 'PUT') {
+            this._index[item.payload.key] = item.payload.value
+          } else if(item.payload.op === 'DEL') {
+            delete this._index[item.payload.key]
+          }
+        }
+        return handled
+      }, [])
+  }
+}
+
+module.exports = KeyValueIndex
+```
+[KeyValueIndex.js](https://github.com/orbitdb/orbit-db-kvstore/blob/master/src/KeyValueIndex.js)
+
 ## Contributing
 
 See [orbit-db's contributing guideline](https://github.com/orbitdb/orbit-db#contributing).

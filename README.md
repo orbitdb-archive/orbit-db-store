@@ -310,8 +310,7 @@ module.exports = KeyValueStore;
 ```
 
 ### Indicies
-The `Store` class instances do not store the current state of the Store, because the 
-indicies  
+The `Store` class instances do not store the current state of the Store.
 
 Index contains the state of a datastore, ie. what data we currently have.
 Index receives a call from a Store when the operations log for the Store
@@ -319,24 +318,17 @@ was updated, ie. new operations were added. In updateIndex, the Index
 implements its CRDT logic: add, remove or update items in the data
 structure.
 
-Each new operation received from the operations log is applied
-in order onto the current state, ie. each new operation changes the data
-and the state changes.
-
 Implementing each CRDT as an Index, we can implement both operation-based
-and state-based CRDTs with the same higher level abstractions.
+and state-based CRDTs with the same higher level abstractions. 
 
-To read the current state of the database, Index provides a single public
-function: `get()`. 
-
-It is up to the Store to decide what kind of query
-capabilities it provides to the consumer.
 Usage:
 ```javascript
 const Index = new Index(userId)
 ```
 
-#### How to implement your own Index
+### How to implement your own Index
+The `KeyValueIndex` is implemented as follows and then used by `KeyValueStore`.
+
 ```js
 'use strict'
 
@@ -370,6 +362,17 @@ class KeyValueIndex {
 module.exports = KeyValueIndex
 ```
 [KeyValueIndex.js](https://github.com/orbitdb/orbit-db-kvstore/blob/master/src/KeyValueIndex.js)
+
+#### `updateIndex`
+Whenever you call `Store._addOperation` the `data` is stored and 
+then passed as an argument in chronological order into `updateIndex`,
+which then has to implement the CRDT logic. 
+
+#### `get`
+An Index can implement whatever querying logic is most opportune or
+desired by the Developers of that store.
+
+This querying logic is then implemented in this get.
 
 ## Contributing
 

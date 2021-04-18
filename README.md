@@ -366,7 +366,7 @@ module.exports = KeyValueIndex
 #### `updateIndex`
 Whenever you call `Store._addOperation` the `data` is stored and 
 then passed as an argument in chronological order into `updateIndex`,
-which then has to implement the CRDT logic. 
+which implements the CRDT logic. 
 
 #### `get`
 An Index can implement whatever querying logic is most opportune or

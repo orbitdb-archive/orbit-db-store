@@ -265,8 +265,6 @@ this._addOperation({
 ### Creating Custom Data Stores
 You can create a custom data stores that stores data in a way you need it to. To do this, you need to import `orbit-db-store` to your custom store and extend your store class from orbit-db-store's `Store`. Below is the `orbit-db-kvstore` which is a custom data store for `orbit-db`.
 
-*TODO: describe indices and how they work*
-
 ```javascript
 const Store         = require('orbit-db-store');
 const KeyValueIndex = require('./KeyValueIndex');
@@ -309,6 +307,33 @@ class KeyValueStore extends Store {
 }
 
 module.exports = KeyValueStore;
+```
+
+### Indicies
+The `Store` class instances do not store the current state of the Store, because the 
+indicies  
+
+Index contains the state of a datastore, ie. what data we currently have.
+Index receives a call from a Store when the operations log for the Store
+was updated, ie. new operations were added. In updateIndex, the Index
+implements its CRDT logic: add, remove or update items in the data
+structure.
+
+Each new operation received from the operations log is applied
+in order onto the current state, ie. each new operation changes the data
+and the state changes.
+
+Implementing each CRDT as an Index, we can implement both operation-based
+and state-based CRDTs with the same higher level abstractions.
+
+To read the current state of the database, Index provides a single public
+function: `get()`. 
+
+It is up to the Store to decide what kind of query
+capabilities it provides to the consumer.
+Usage:
+```javascript
+const Index = new Index(userId)
 ```
 
 ## Contributing

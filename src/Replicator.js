@@ -7,7 +7,7 @@ const logger = Logger.create('replicator', { color: Logger.Colors.Cyan })
 Logger.setLogLevel('ERROR')
 
 const nextRefsIntersection = e => [...new Set([...e.next, ...e.refs])]
-const flatMap = (res, val) => res.concat(...val)
+const flatMap = (res, val) => res.concat(val)
 const notNull = entry => entry !== null && entry !== undefined
 const uniqueValues = (res, val) => {
   res[val] = val

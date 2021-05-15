@@ -180,8 +180,7 @@ class Replicator extends EventEmitter {
     this.emit('load.progress', this._id, hash, latest, null, this._buffer.length)
 
     // Return all next pointers
-    const refsPointers = log.values.map(nextRefsUnion).reduce(flatMap, [])
-    return refsPointers
+    return log.values.map(nextRefsUnion).reduce(flatMap, [])
   }
 }
 

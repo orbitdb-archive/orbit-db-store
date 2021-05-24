@@ -24,7 +24,7 @@
   "license": "MIT",
   "dependencies": {
     "ipfs-log": "~5.1.1",
-    "it-to-stream": "^0.1.2",
+    "it-to-stream": "^1.0.0",
     "logplease": "^1.2.14",
     "orbit-db-io": "~0.3.0",
     "p-each-series": "^2.1.0",

@@ -13,12 +13,10 @@ const {
   config,
   testAPIs,
   startIpfs,
-  stopIpfs,
-  implementations
+  stopIpfs
 } = require('orbit-db-test-utils')
 
-const properLevelModule = implementations.filter(i => i.key.indexOf('memdown') > -1).map(i => i.module)[0]
-const storage = require('orbit-db-storage-adapter')(properLevelModule)
+const storage = require('orbit-db-storage-adapter')(require('memdown'))
 
 Object.keys(testAPIs).forEach((IPFS) => {
   describe(`addOperation ${IPFS}`, function () {

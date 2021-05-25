@@ -2,13 +2,13 @@
 version: 2.1
 
 executors:
-  node12-browsers:
+  lts-browsers:
     docker:
-      - image: circleci/node:12-browsers
+      - image: circleci/node:lts-browsers
 
 jobs:
   setup:
-    executor: node12-browsers
+    executor: lts-browsers
     steps:
       - checkout
       - run: mkdir -p /tmp/workspace
@@ -31,13 +31,13 @@ jobs:
           at: ./
       - run: npm run test:node
   test-browser:
-    executor: node12-browsers
+    executor: lts-browsers
     steps:
       - attach_workspace:
           at: ./
       - run: npm run test:browser
   build:
-    executor: node12-browsers
+    executor: lts-browsers
     steps:
       - attach_workspace:
           at: ./

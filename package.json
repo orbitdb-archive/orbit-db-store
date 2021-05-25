@@ -61,7 +61,7 @@
     "orbit-db-storage-adapter": "^0.6.0",
     "orbit-db-test-utils": "^1.0.3",
     "rimraf": "^3.0.0",
-    "standard": "^14.0.2",
+    "standard": "^16.0.3",
     "webpack": "^4.44.1",
     "webpack-cli": "^3.3.12"
   },

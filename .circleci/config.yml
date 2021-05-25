@@ -25,7 +25,7 @@ jobs:
             - conf
             - package.json
   test-node:
-    executor: node12-browsers
+    executor: lts-browsers
     steps:
       - attach_workspace:
           at: ./

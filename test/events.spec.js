@@ -13,7 +13,7 @@ const {
   config,
   testAPIs,
   startIpfs,
-  stopIpfs,
+  stopIpfs
 } = require('orbit-db-test-utils')
 
 const storage = require('orbit-db-storage-adapter')(require('memdown'))

@@ -44,7 +44,7 @@
     "@babel/plugin-transform-runtime": "^7.11.0",
     "@babel/preset-env": "^7.11.0",
     "@babel/runtime": "^7.11.2",
-    "babel-loader": "~8.1.0",
+    "babel-loader": "^8.2.2",
     "go-ipfs": "^0.8.0",
     "ipfs": "^0.55.1",
     "ipfs-http-client": "^50.0.0",

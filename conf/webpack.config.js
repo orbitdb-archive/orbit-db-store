@@ -20,7 +20,7 @@ module.exports = {
       path.resolve(__dirname, '../node_modules')
     ],
     fallback: {
-      "path": require.resolve("path-browserify")
+      path: require.resolve('path-browserify')
     }
   },
   resolveLoader: {

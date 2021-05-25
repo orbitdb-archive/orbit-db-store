@@ -1,6 +1,6 @@
 'use strict'
 
-var assert = require('assert')
+const assert = require('assert')
 const Store = require('../src/Store')
 
 const Cache = require('orbit-db-cache')

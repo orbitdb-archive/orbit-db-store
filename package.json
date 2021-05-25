@@ -62,8 +62,8 @@
     "orbit-db-test-utils": "^1.0.3",
     "rimraf": "^3.0.0",
     "standard": "^16.0.3",
-    "webpack": "^4.44.1",
-    "webpack-cli": "^3.3.12"
+    "webpack": "^5.37.1",
+    "webpack-cli": "^4.7.0"
   },
   "localMaintainers": [
     "haad <haad@haja.io>",

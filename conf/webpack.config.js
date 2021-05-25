@@ -11,24 +11,22 @@ module.exports = {
   },
   target: 'web',
   mode: 'production',
-  devtool: 'sourcemap',
-  node: {
-    console: false,
-    Buffer: true
-  },
+  devtool: 'source-map',
   plugins: [
   ],
   resolve: {
     modules: [
       'node_modules',
       path.resolve(__dirname, '../node_modules')
-    ]
+    ],
+    fallback: {
+      "path": require.resolve("path-browserify")
+    }
   },
   resolveLoader: {
     modules: [
       'node_modules',
       path.resolve(__dirname, '../node_modules')
-    ],
-    moduleExtensions: ['-loader']
+    ]
   }
 }

@@ -191,7 +191,7 @@ class Store {
     }
 
     // Remove all event listeners
-    for (var event in this.events._events) {
+    for (const event in this.events._events) {
       this.events.removeAllListeners(event)
     }
 
@@ -439,8 +439,8 @@ class Store {
   }
 
   _procEntry (entry) {
-    var { payload, hash } = entry
-    var { op } = payload
+    const { payload, hash } = entry
+    const { op } = payload
     if (op) {
       this.events.emit(`log.op.${op}`, this.address.toString(), hash, payload)
     } else {

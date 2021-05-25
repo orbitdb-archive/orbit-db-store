@@ -8,7 +8,7 @@
     "test:node": "TEST=go mocha; TEST=js nyc mocha",
     "test:browser": "npm run build:tests && mocha-headless-chrome -f ./test/browser/index.html -a no-sandbox",
     "build": "npm run build:dist",
-    "build:dist": "webpack --config ./conf/webpack.config.js --display-modules --sort-modules-by size --mode production",
+    "build:dist": "webpack --config ./conf/webpack.config.js --mode production",
     "build:docs": "markdown-toc --no-first1 -i README.md",
     "build:tests": "webpack --config ./conf/webpack.tests.config.js --mode production",
     "lint": "standard"
@@ -18,7 +18,7 @@
     "url": "https://github.com/orbitdb/orbit-db-store"
   },
   "engines": {
-    "node": ">=12.0.0"
+    "node": ">=14.0.0"
   },
   "author": "Haad",
   "license": "MIT",
@@ -44,21 +44,29 @@
     "@babel/plugin-transform-runtime": "^7.11.0",
     "@babel/preset-env": "^7.11.0",
     "@babel/runtime": "^7.11.2",
-    "babel-loader": "~8.1.0",
+    "assert": "^2.0.0",
+    "babel-loader": "^8.2.2",
+    "go-ipfs": "^0.8.0",
+    "ipfs": "^0.55.1",
+    "ipfs-http-client": "^50.0.0",
+    "ipfsd-ctl": "^8.0.2",
     "json-loader": "~0.5.7",
     "markdown-toc": "^1.2.0",
+    "memdown": "^6.0.0",
     "mocha": "^8.1.1",
     "mocha-headless-chrome": "^3.1.0",
     "nyc": "^15.1.0",
     "orbit-db-cache": "~0.3.0",
     "orbit-db-identity-provider": "~0.3.1",
     "orbit-db-keystore": "~0.3.5",
-    "orbit-db-storage-adapter": "^0.5.3",
-    "orbit-db-test-utils": "^0.12.1",
+    "orbit-db-storage-adapter": "^0.6.0",
+    "orbit-db-test-utils": "^1.0.3",
+    "path-browserify": "^1.0.1",
     "rimraf": "^3.0.0",
-    "standard": "^14.0.2",
-    "webpack": "^4.44.1",
-    "webpack-cli": "^3.3.12"
+    "standard": "^16.0.3",
+    "stream-browserify": "^3.0.0",
+    "webpack": "^5.37.1",
+    "webpack-cli": "^4.7.0"
   },
   "localMaintainers": [
     "haad <haad@haja.io>",

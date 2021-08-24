@@ -190,6 +190,9 @@ class Store {
       syncRequestsReceieved: 0
     }
 
+    // Close store access controller
+    await this.access.close()
+
     // Remove all event listeners
     for (const event in this.events._events) {
       this.events.removeAllListeners(event)

@@ -191,7 +191,7 @@ class Store {
     }
 
     // Close store access controller
-    await this.access.close()
+    if (this.access.close) await this.access.close()
 
     // Remove all event listeners
     for (const event in this.events._events) {

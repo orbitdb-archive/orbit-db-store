@@ -10,7 +10,7 @@
     "build": "npm run build:dist",
     "build:dist": "webpack --config ./conf/webpack.config.js --mode production",
     "build:docs": "markdown-toc --no-first1 -i README.md",
-    "build:tests": "webpack --config ./conf/webpack.tests.config.js --mode production",
+    "build:tests": "webpack --config ./conf/webpack.tests.config.js --mode development",
     "lint": "standard"
   },
   "repository": {

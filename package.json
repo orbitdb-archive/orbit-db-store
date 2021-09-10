@@ -23,7 +23,7 @@
   "author": "Haad",
   "license": "MIT",
   "dependencies": {
-    "ipfs-log": "github:tabcat/ipfs-log#upgrade-ipfs",
+    "ipfs-log": "^5.2.1-ef52fce.0",
     "it-to-stream": "^1.0.0",
     "logplease": "^1.2.14",
     "p-each-series": "^2.1.0",

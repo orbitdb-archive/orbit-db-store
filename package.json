@@ -44,6 +44,7 @@
     "@babel/runtime": "^7.11.2",
     "assert": "^2.0.0",
     "babel-loader": "^8.2.2",
+    "eslint": "^7.32.0",
     "go-ipfs": "^0.9.1",
     "ipfs": "^0.58.2",
     "ipfsd-ctl": "^10.0.3",

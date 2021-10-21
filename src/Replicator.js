@@ -68,7 +68,7 @@ class Replicator {
    * @return {[Array]} [Strings of hashes of entries currently queued or being processed]
    */
   get unfinished () {
-    return this._fetching
+    return Object.keys(this._fetching)
   }
 
   /*

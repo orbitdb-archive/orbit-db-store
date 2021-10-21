@@ -87,7 +87,7 @@ Object.keys(testAPIs).forEach((IPFS) => {
         replicator.onReplicationComplete = async (replicatedLogs) => {
           assert.strictEqual(replicator.tasksRunning, 0)
           assert.strictEqual(replicator.tasksQueued, 0)
-          assert.strictEqual(replicator.unfinished, 0)
+          assert.strictEqual(replicator.unfinished.length, 0)
           for (const replicatedLog of replicatedLogs) {
             await log.join(replicatedLog)
           }

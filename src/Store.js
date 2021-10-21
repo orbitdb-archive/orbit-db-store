@@ -183,6 +183,8 @@ class Store {
   }
 
   async close () {
+    this._oplog = null
+
     // Stop the Replicator
     await this._replicator.stop()
 
@@ -215,8 +217,6 @@ class Store {
     for (const event in this.events._events) {
       this.events.removeAllListeners(event)
     }
-
-    this._oplog = null
 
     // Database is now closed
     // TODO: afaik we don't use 'closed' event anymore,

@@ -20,7 +20,7 @@ module.exports = {
         NODE_ENV: JSON.stringify('development')
       }
     }),
-    new webpack.IgnorePlugin({ resourceRegExp: /mongo|redis/}),
+    new webpack.IgnorePlugin({ resourceRegExp: /mongo|redis/ }),
     new NodePolyfillPlugin()
   ],
   externals: {

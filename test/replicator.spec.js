@@ -15,16 +15,6 @@ const {
 // Tests timeout
 const timeout = 30000
 
-class DummyStore {
-  constructor (log, ipfs, identity) {
-    this._oplog = log
-    this._ipfs = ipfs
-    this.identity = identity
-  }
-
-  async close () {}
-}
-
 Object.keys(testAPIs).forEach((IPFS) => {
   describe(`Replicator, ${IPFS}`, function () {
     this.timeout(timeout)
@@ -43,13 +33,11 @@ Object.keys(testAPIs).forEach((IPFS) => {
       const testIdentity = await IdentityProvider.createIdentity({ id, keystore })
       log = new Log(ipfs, testIdentity)
 
-      store = new DummyStore(log, ipfs, testIdentity)
       replicator = new Replicator(store, 123)
     })
 
     after(async () => {
       await replicator.stop()
-      await store.close()
       await stopIpfs(ipfsd)
       await keystore.close()
     })

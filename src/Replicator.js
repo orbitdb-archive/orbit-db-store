@@ -1,7 +1,7 @@
 const PQueue = require('p-queue').default
 const Log = require('ipfs-log')
 
-const getNext = e => e.next.concat(e.refs)
+const getNextAndRefsUnion = e => [...new Set([...e.next, ...e.refs])]
 const flatMap = (res, val) => res.concat(val)
 
 const defaultConcurrency = 32
@@ -167,8 +167,7 @@ class Replicator {
     )
 
     // Return all next pointers
-    const values = log.values
-    const nexts = values.map(getNext).reduce(flatMap, [])
+    const nexts = log.values.map(getNextAndRefsUnion).reduce(flatMap, [])
     try {
       // Add the next (hashes) to the processing queue
       this._addToQueue(nexts)

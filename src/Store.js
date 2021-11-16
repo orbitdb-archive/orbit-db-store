@@ -431,14 +431,14 @@ class Store {
         if (this.options.syncLocal) {
           await this.syncLocal()
         }
+        const entry = await this._oplog.append(data, this.options.referenceCount, pin)
+        this._recalculateReplicationStatus(entry.clock.time)
+        await this._cache.set(this.localHeadsPath, [entry])
+        await this._updateIndex()
+        this.events.emit('write', this.address.toString(), entry, this._oplog.heads)
+        if (onProgressCallback) onProgressCallback(entry)
+        return entry.hash
       }
-      const entry = await this._oplog.append(data, this.options.referenceCount, pin)
-      this._recalculateReplicationStatus(entry.clock.time)
-      await this._cache.set(this.localHeadsPath, [entry])
-      await this._updateIndex()
-      this.events.emit('write', this.address.toString(), entry, this._oplog.heads)
-      if (onProgressCallback) onProgressCallback(entry)
-      return entry.hash
     }
     return this._queue.add(addOperation.bind(this))
   }

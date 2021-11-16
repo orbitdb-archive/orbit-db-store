@@ -1,186 +1,182 @@
-const EventEmitter = require('events').EventEmitter
-const pMap = require('p-map')
+const PQueue = require('p-queue').default
 const Log = require('ipfs-log')
 
-const Logger = require('logplease')
-const logger = Logger.create('replicator', { color: Logger.Colors.Cyan })
-Logger.setLogLevel('ERROR')
-
-const nextRefsUnion = e => [...new Set([...e.next, ...e.refs])]
+const getNextAndRefsUnion = e => [...new Set([...e.next, ...e.refs])]
 const flatMap = (res, val) => res.concat(val)
-const notNull = entry => entry !== null && entry !== undefined
-const uniqueValues = (res, val) => {
-  res[val] = val
-  return res
-}
 
-const batchSize = 1
+const defaultConcurrency = 32
 
-class Replicator extends EventEmitter {
+class Replicator {
   constructor (store, concurrency) {
-    super()
     this._store = store
+    this._concurrency = concurrency || defaultConcurrency
+
+    // Tasks processing queue where each log sync request is
+    // added as a task that fetches the log
+    this._q = new PQueue({ concurrency: this._concurrency })
+
+    /* Internal caches */
+
+    // For storing fetched logs before "load is complete".
+    // Cleared when processing is complete.
+    this._logs = []
+    // Index of hashes (CIDs) for checking which entries are currently being fetched.
+    // Hashes are added to this cache before fetching a log starts and removed after
+    // the log was fetched.
     this._fetching = {}
-    this._stats = {
-      tasksRequested: 0,
-      tasksStarted: 0,
-      tasksProcessed: 0
-    }
-    this._buffer = []
+    // Index of hashes (CIDs) for checking which entries have been fetched.
+    // Cleared when processing is complete.
+    this._fetched = {}
 
-    this._concurrency = concurrency || 128
-    this._queue = {}
-    this._q = new Set()
-
-    // Flush the queue as an emergency switch
-    this._flushTimer = setInterval(() => {
-      if (this.tasksRunning === 0 && Object.keys(this._queue).length > 0) {
-        logger.warn('Had to flush the queue!', Object.keys(this._queue).length, 'items in the queue, ', this.tasksRequested, this.tasksFinished, ' tasks requested/finished')
-        setTimeout(() => this._processQueue(), 0)
+    // Listen for an event when the task queue has emptied
+    // and all tasks have been processed. We call the
+    // onReplicationComplete callback which then updates the Store's
+    // state (eg. index, replication state, etc)
+    this._q.on('idle', async () => {
+      const logs = this._logs.slice()
+      this._logs = []
+      if (this.onReplicationComplete && logs.length > 0 && this._store._oplog) {
+        try {
+          await this.onReplicationComplete(logs)
+          // Remove from internal cache
+          logs.forEach(log => log.values.forEach(e => delete this._fetched[e.hash]))
+        } catch (e) {
+          console.error(e)
+        }
       }
-    }, 3000)
+    })
   }
 
   /**
-   * Returns the number of tasks started during the life time
-   * @return {[Integer]} [Number of tasks started]
-   */
-  get tasksRequested () {
-    return this._stats.tasksRequested
-  }
-
-  /**
-   * Returns the number of tasks started during the life time
-   * @return {[Integer]} [Number of tasks running]
-   */
-  get tasksStarted () {
-    return this._stats.tasksStarted
-  }
-
-  /**
-   * Returns the number of tasks running currently
-   * @return {[Integer]} [Number of tasks running]
+   * Returns the number of replication tasks running currently
+   * @return {[Integer]} [Number of replication tasks running]
    */
   get tasksRunning () {
-    return this._stats.tasksStarted - this._stats.tasksProcessed
+    return this._q.pending
   }
 
   /**
-   * Returns the number of tasks currently queued
-   * @return {[Integer]} [Number of tasks queued]
+   * Returns the number of replication tasks currently queued
+   * @return {[Integer]} [Number of replication tasks queued]
    */
   get tasksQueued () {
-    return Math.max(Object.keys(this._queue).length - this.tasksRunning, 0)
+    return this._q.size
   }
 
   /**
-   * Returns the number of tasks finished during the life time
-   * @return {[Integer]} [Number of tasks finished]
+   * Returns the hashes currently queued or being processed
+   * @return {[Array]} [Strings of hashes of entries currently queued or being processed]
    */
-  get tasksFinished () {
-    return this._stats.tasksProcessed
-  }
-
-  /**
-   * Returns the hashes currently queued
-   * @return {[Array<String>]} [Queued hashes]
-   */
-  getQueue () {
-    return Object.values(this._queue)
+  get unfinished () {
+    return Object.keys(this._fetching)
   }
 
   /*
     Process new heads.
+    Param 'entries' is an Array of Entry instances or strings (of CIDs).
    */
-  load (entries) {
-    const notKnown = entry => {
-      const hash = entry.hash || entry
-      return !this._store._oplog.has(hash) && !this._fetching[hash] && !this._queue[hash]
-    }
-
+  async load (entries) {
     try {
-      entries
-        .filter(notNull)
-        .filter(notKnown)
-        .forEach(this._addToQueue.bind(this))
-
-      setTimeout(() => this._processQueue(), 0)
+      // Add entries to the replication queue
+      this._addToQueue(entries)
     } catch (e) {
       console.error(e)
     }
   }
 
-  stop () {
-    // Clears the queue flusher
-    clearInterval(this._flushTimer)
-    // Remove event listeners
-    this.removeAllListeners('load.added')
-    this.removeAllListeners('load.end')
-    this.removeAllListeners('load.progress')
-  }
+  async _addToQueue (entries) {
+    // Function to determine if an entry should be fetched (ie. do we have it somewhere already?)
+    const shouldExclude = (h) => h && this._store._oplog && (this._store._oplog.has(h) || this._fetching[h] !== undefined || this._fetched[h])
 
-  _addToQueue (entry) {
-    const hash = entry.hash || entry
-    this._stats.tasksRequested += 1
-    this._queue[hash] = entry
-  }
-
-  async _processQueue () {
-    if (this.tasksRunning < this._concurrency) {
-      const capacity = this._concurrency - this.tasksRunning
-      const items = Object.values(this._queue).slice(0, capacity).filter(notNull)
-      items.forEach(entry => delete this._queue[entry.hash || entry])
-
-      const flattenAndGetUniques = (nexts) => nexts.reduce(flatMap, []).reduce(uniqueValues, {})
-      const processValues = (nexts) => {
-        const values = Object.values(nexts).filter(notNull)
-
-        if ((items.length > 0 && this._buffer.length > 0) ||
-        (this.tasksRunning === 0 && this._buffer.length > 0)) {
-          const logs = this._buffer.slice()
-          this._buffer = []
-          this.emit('load.end', logs)
+    // A task to process a given entries
+    const createReplicationTask = (e) => {
+      // Add to internal "currently fetching" cache
+      this._fetching[e.hash || e] = true
+      // The returned function is the processing function / task
+      // to run concurrently
+      return async () => {
+        // Call onReplicationProgress only for entries that have .hash field,
+        // if it is a string don't call it (added internally from .next)
+        if (e.hash && this.onReplicationQueued) {
+          this.onReplicationQueued(e)
         }
-
-        if (values.length > 0) {
-          this.load(values)
+        try {
+          // Replicate the log starting from the entry's hash (CID)
+          const log = await this._replicateLog(e)
+          // Add the fetched log to the internal cache to wait
+          // for "onReplicationComplete"
+          this._logs.push(log)
+        } catch (e) {
+          console.error(e)
+          throw e
         }
+        // Remove from internal cache
+        delete this._fetching[e.hash || e]
       }
+    }
 
-      return pMap(items, e => this._processOne(e))
-        .then(flattenAndGetUniques)
-        .then(processValues)
+    if (entries.length > 0) {
+      // Create a processing tasks from each entry/hash that we
+      // should include based on the exclusion filter function
+      const tasks = entries
+        .filter((e) => !shouldExclude(e.hash || e))
+        .map((e) => createReplicationTask(e))
+      // Add the tasks to the processing queue
+      if (tasks.length > 0) {
+        this._q.addAll(tasks)
+      }
     }
   }
 
-  async _processOne (entry) {
+  async stop () {
+    // Clear the task queue
+    this._q.clear()
+    // Reset internal caches
+    this._logs = []
+    this._fetching = {}
+    this._fetched = {}
+  }
+
+  async _replicateLog (entry) {
     const hash = entry.hash || entry
 
-    if (this._store._oplog.has(hash) || this._fetching[hash]) {
-      return
+    // Notify the Store that we made progress
+    const onProgressCallback = (entry) => {
+      this._fetched[entry.hash] = true
+      if (this.onReplicationQueued) {
+        this.onReplicationProgress(entry)
+      }
     }
 
-    this._fetching[hash] = hash
-    this.emit('load.added', entry)
-    this._stats.tasksStarted += 1
+    const shouldExclude = (h) => h && h !== hash && this._store._oplog && (this._store._oplog.has(h) || this._fetching[h] !== undefined || this._fetched[h] !== undefined)
 
-    const exclude = []
-    // console.log('>', hash)
-    const log = await Log.fromEntryHash(this._store._ipfs, this._store.identity, hash, { logId: this._store._oplog.id, access: this._store.access, length: batchSize, exclude })
-    this._buffer.push(log)
-
-    const latest = log.values[0]
-    delete this._queue[hash]
-    // console.log('>>', latest.payload)
-
-    // Mark this task as processed
-    this._stats.tasksProcessed += 1
-
-    // Notify subscribers that we made progress
-    this.emit('load.progress', this._id, hash, latest, null, this._buffer.length)
+    // Fetch and load a log from the entry hash
+    const log = await Log.fromEntryHash(
+      this._store._ipfs,
+      this._store.identity,
+      hash,
+      {
+        logId: this._store.id,
+        access: this._store.access,
+        length: -1,
+        exclude: [],
+        shouldExclude,
+        concurrency: this._concurrency,
+        onProgressCallback
+      }
+    )
 
     // Return all next pointers
-    return log.values.map(nextRefsUnion).reduce(flatMap, [])
+    const nexts = log.values.map(getNextAndRefsUnion).reduce(flatMap, [])
+    try {
+      // Add the next (hashes) to the processing queue
+      this._addToQueue(nexts)
+    } catch (e) {
+      console.error(e)
+      throw e
+    }
+    // Return the log
+    return log
   }
 }
 

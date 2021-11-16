@@ -1,13 +1,12 @@
 class ReplicationInfo {
   constructor () {
-    this.reset()
+    this.progress = 0
+    this.max = 0
   }
 
   reset () {
     this.progress = 0
     this.max = 0
-    this.buffered = 0
-    this.queued = 0
   }
 }
 

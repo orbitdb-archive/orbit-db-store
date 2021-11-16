@@ -17,10 +17,10 @@ module.exports = {
   plugins: [
     new webpack.DefinePlugin({
       'process.env': {
-        NODE_ENV: JSON.stringify(process.env.NODE_ENV)
+        NODE_ENV: JSON.stringify('development')
       }
     }),
-    new webpack.IgnorePlugin(/mongo|redis/),
+    new webpack.IgnorePlugin({ resourceRegExp: /mongo|redis/}),
     new NodePolyfillPlugin()
   ],
   externals: {

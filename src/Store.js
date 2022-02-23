@@ -95,7 +95,8 @@ class Store {
         const previousProgress = this.replicationStatus.progress
         const previousMax = this.replicationStatus.max
         this._recalculateReplicationStatus(entry.clock.time)
-        if (this.replicationStatus.progress > previousProgress ||
+        if (this._oplog.length + 1 > this.replicationStatus.progress ||
+          this.replicationStatus.progress > previousProgress ||
           this.replicationStatus.max > previousMax) {
           this.events.emit('replicate.progress', this.address.toString(), entry.hash, entry, this.replicationStatus.progress, this.replicationStatus.max)
         }

@@ -143,7 +143,7 @@ class Replicator {
     // Notify the Store that we made progress
     const onProgressCallback = (entry) => {
       this._fetched[entry.hash] = true
-      if (this.onReplicationQueued) {
+      if (this.onReplicationProgress) {
         this.onReplicationProgress(entry)
       }
     }

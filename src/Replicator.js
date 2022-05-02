@@ -130,7 +130,9 @@ class Replicator {
 
   async stop () {
     // Clear the task queue
+    this._q.pause()
     this._q.clear()
+    await this._q.onIdle()
     // Reset internal caches
     this._logs = []
     this._fetching = {}

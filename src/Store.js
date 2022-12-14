@@ -1,19 +1,16 @@
-'use strict'
+import path from 'path'
+import { EventEmitter } from 'events'
+import mapSeries from 'p-each-series'
+import PQueue from 'p-queue'
+import Index from './Index.js'
+import Replicator from './Replicator.js'
+import ReplicationInfo from './replication-info.js'
+import Logger from 'logplease'
+import * as io from 'orbit-db-io'
+import Log, { Entry } from 'ipfs-log'
 
-const path = require('path')
-const EventEmitter = require('events').EventEmitter
-const mapSeries = require('p-each-series')
-const { default: PQueue } = require('p-queue')
-const Log = require('ipfs-log')
-const Entry = Log.Entry
-const Index = require('./Index')
-const Replicator = require('./Replicator')
-const ReplicationInfo = require('./replication-info')
-
-const Logger = require('logplease')
 const logger = Logger.create('orbit-db.store', { color: Logger.Colors.Blue })
 Logger.setLogLevel('ERROR')
-const io = require('orbit-db-io')
 
 const DefaultOptions = {
   Index: Index,
@@ -459,7 +456,7 @@ class Store {
     this.events.emit('log.op', op, this.address.toString(), hash, payload)
   }
 
-  /* Replication Status state updates */
+  // Replication Status state updates
   _recalculateReplicationProgress () {
     this._replicationStatus.progress = Math.max(
       Math.min(this._replicationStatus.progress + 1, this._replicationStatus.max),
@@ -480,12 +477,14 @@ class Store {
     this._recalculateReplicationProgress()
   }
 
-  /* Loading progress callback */
+  // Loading progress callback
   _onLoadProgress (entry) {
     this._recalculateReplicationStatus(entry.clock.time)
     this.events.emit('load.progress', this.address.toString(), entry.hash, entry, this.replicationStatus.progress, this.replicationStatus.max)
   }
 }
 
-module.exports = Store
-module.exports.DefaultOptions = DefaultOptions
+export {
+    Store as default,
+    DefaultOptions
+}

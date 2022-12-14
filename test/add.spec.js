@@ -1,22 +1,19 @@
-'use strict'
-
-const assert = require('assert')
-const Store = require('../src/Store')
-
-const Cache = require('orbit-db-cache')
-const Keystore = require('orbit-db-keystore')
-const IdentityProvider = require('orbit-db-identity-provider')
-const DefaultOptions = Store.DefaultOptions
-
+import assert from 'assert'
+import Store, { DefaultOptions } from '../src/Store.js'
+import Cache from 'orbit-db-cache'
+import Keystore from 'orbit-db-keystore'
+import IdentityProvider from 'orbit-db-identity-provider'
+import storageAdapter from 'orbit-db-storage-adapter'
+import memdown from 'memdown'
 // Test utils
-const {
+import {
   config,
   testAPIs,
   startIpfs,
   stopIpfs
-} = require('orbit-db-test-utils')
+} from 'orbit-db-test-utils'
 
-const storage = require('orbit-db-storage-adapter')(require('memdown'))
+var storage = storageAdapter(memdown)
 
 Object.keys(testAPIs).forEach((IPFS) => {
   describe(`addOperation ${IPFS}`, function () {

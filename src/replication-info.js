@@ -1,4 +1,4 @@
-class ReplicationInfo {
+export default class ReplicationInfo {
   constructor () {
     this.progress = 0
     this.max = 0
@@ -9,5 +9,3 @@ class ReplicationInfo {
     this.max = 0
   }
 }
-
-module.exports = ReplicationInfo

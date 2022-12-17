@@ -3,7 +3,8 @@
   "version": "4.3.4",
   "description": "Base class for orbit-db data stores",
   "type": "module",
-  "exports": "src/Store.js",
+  "main": "./src/Store.js",
+  "exports": "./src/Store.js",
   "scripts": {
     "test": "npm run test:node && npm run test:browser",
     "test:node": "TEST=go mocha; TEST=js nyc mocha",

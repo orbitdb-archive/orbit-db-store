@@ -25,7 +25,7 @@
   "author": "Haad",
   "license": "MIT",
   "dependencies": {
-    "ipfs-log": "github:haydenyoung/ipfs-log#esm-readme",
+    "ipfs-log": "github:haydenyoung/ipfs-log#esm",
     "it-to-stream": "^1.0.0",
     "logplease": "^1.2.14",
     "p-each-series": "^2.1.0",

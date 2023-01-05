@@ -7,7 +7,7 @@ import Replicator from './Replicator.js'
 import ReplicationInfo from './replication-info.js'
 import Logger from 'logplease'
 import * as io from 'orbit-db-io'
-import Log, { Entry, getWriteFormat } from 'ipfs-log'
+import Log, { Entry, IPLD_LINKS, getWriteFormat } from 'ipfs-log'
 
 const logger = Logger.create('orbit-db.store', { color: Logger.Colors.Blue })
 Logger.setLogLevel('ERROR')
@@ -319,7 +319,7 @@ class Store {
       }
 
       const logEntry = Entry.toEntry(head)
-      const hash = await io.write(this._ipfs, getWriteFormat(logEntry), logEntry, { links: Entry.IPLD_LINKS, onlyHash: true })
+      const hash = await io.write(this._ipfs, getWriteFormat(logEntry), logEntry, { links: IPLD_LINKS, onlyHash: true })
 
       if (hash !== head.hash) {
         console.warn('"WARNING! Head hash didn\'t match the contents')

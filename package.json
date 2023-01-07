@@ -25,7 +25,7 @@
   "author": "Haad",
   "license": "MIT",
   "dependencies": {
-    "ipfs-log": "github:haydenyoung/ipfs-log#esm",
+    "ipfs-log": "github:orbitdb/ipfs-log#esm",
     "it-to-stream": "^1.0.0",
     "logplease": "^1.2.14",
     "p-each-series": "^2.1.0",
@@ -57,10 +57,10 @@
     "node-polyfill-webpack-plugin": "^1.1.4",
     "node-pre-gyp": "^0.13.0",
     "nyc": "^15.1.0",
-    "orbit-db-cache": "github:haydenyoung/orbit-db-cache#esm",
-    "orbit-db-identity-provider": "github:haydenyoung/orbit-db-identity-provider#esm",
-    "orbit-db-keystore": "github:haydenyoung/orbit-db-keystore#esm",
-    "orbit-db-storage-adapter": "github:haydenyoung/orbit-db-storage-adapter#esm",
+    "orbit-db-cache": "github:orbitdb/orbit-db-cache#esm",
+    "orbit-db-identity-provider": "github:orbitdb/orbit-db-identity-provider#esm",
+    "orbit-db-keystore": "github:orbitdb/orbit-db-keystore#esm",
+    "orbit-db-storage-adapter": "github:orbitdb/orbit-db-storage-adapter#esm",
     "orbit-db-test-utils": "^2.2.0",
     "path-browserify": "^1.0.1",
     "process": "^0.11.10",
@@ -76,6 +76,6 @@
     "hajamark <mark@haja.io>"
   ],
   "peerDependencies": {
-    "orbit-db-io": "github:haydenyoung/orbit-db-io#esm"
+    "orbit-db-io": "github:orbitdb/orbit-db-io#esm"
   }
 }

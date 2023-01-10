@@ -5,3 +5,5 @@ test/browser/bundle.js.map
 dist/orbit-db-store.min.js.map
 .nyc_output
 orbitdb/
+cache
+identity

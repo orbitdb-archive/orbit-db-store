@@ -13,7 +13,8 @@
     "build:dist": "webpack --config ./conf/webpack.config.js --mode production",
     "build:docs": "markdown-toc --no-first1 -i README.md",
     "build:tests": "webpack --config ./conf/webpack.tests.config.js --mode development",
-    "lint": "standard"
+    "lint": "standard --env=mocha",
+    "lint:fix": "standard --env=mocha --fix"
   },
   "repository": {
     "type": "git",
@@ -25,7 +26,7 @@
   "author": "Haad",
   "license": "MIT",
   "dependencies": {
-    "ipfs-log": "github:orbitdb/ipfs-log#esm",
+    "ipfs-log": "next",
     "it-to-stream": "^1.0.0",
     "logplease": "^1.2.14",
     "p-each-series": "^2.1.0",
@@ -57,10 +58,10 @@
     "node-polyfill-webpack-plugin": "^1.1.4",
     "node-pre-gyp": "^0.13.0",
     "nyc": "^15.1.0",
-    "orbit-db-cache": "github:orbitdb/orbit-db-cache#esm",
-    "orbit-db-identity-provider": "github:orbitdb/orbit-db-identity-provider#esm",
-    "orbit-db-keystore": "github:orbitdb/orbit-db-keystore#esm",
-    "orbit-db-storage-adapter": "github:orbitdb/orbit-db-storage-adapter#esm",
+    "orbit-db-cache": "next",
+    "orbit-db-identity-provider": "next",
+    "orbit-db-keystore": "next",
+    "orbit-db-storage-adapter": "next",
     "orbit-db-test-utils": "^2.2.0",
     "path-browserify": "^1.0.1",
     "process": "^0.11.10",
@@ -76,6 +77,6 @@
     "hajamark <mark@haja.io>"
   ],
   "peerDependencies": {
-    "orbit-db-io": "github:orbitdb/orbit-db-io#esm"
+    "orbit-db-io": "*"
   }
 }

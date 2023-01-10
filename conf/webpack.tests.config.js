@@ -4,7 +4,7 @@ import { createRequire } from 'module'
 
 export default (env, argv) => {
   const require = createRequire(import.meta.url)
-  
+
   return {
     // TODO: put all tests in a .js file that webpack can use as entry point
     entry: glob.sync('./test/*.spec.js'),
@@ -37,7 +37,6 @@ export default (env, argv) => {
       fs: '{ existsSync: () => true }',
       fatfs: '{}',
       runtimejs: '{}',
-      rimraf: '{ sync: () => {} }',
       'graceful-fs': '{}',
       'fs-extra': '{ copy: () => {} }',
       'fs.realpath': '{}'

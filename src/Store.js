@@ -485,6 +485,6 @@ class Store {
 }
 
 export {
-    Store as default,
-    DefaultOptions
+  Store as default,
+  DefaultOptions
 }

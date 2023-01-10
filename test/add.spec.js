@@ -13,7 +13,7 @@ import {
   stopIpfs
 } from 'orbit-db-test-utils'
 
-var storage = storageAdapter(memdown)
+const storage = storageAdapter(memdown)
 
 Object.keys(testAPIs).forEach((IPFS) => {
   describe(`addOperation ${IPFS}`, function () {

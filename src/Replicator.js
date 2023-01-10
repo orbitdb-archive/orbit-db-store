@@ -1,5 +1,5 @@
 import PQueue from 'p-queue'
-import Log, { Entry } from 'ipfs-log'
+import Log from 'ipfs-log'
 
 const getNextAndRefsUnion = e => [...new Set([...e.next, ...e.refs])]
 const flatMap = (res, val) => res.concat(val)

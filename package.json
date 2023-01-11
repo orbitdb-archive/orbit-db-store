@@ -28,11 +28,11 @@
   "dependencies": {
     "ipfs-log": "next",
     "it-to-stream": "^1.0.0",
-    "logplease": "^1.2.14",
-    "p-each-series": "^2.1.0",
-    "p-map": "^4.0.0",
+    "logplease": "^1.2.15",
+    "p-each-series": "^3.0.0",
+    "p-map": "^5.5.0",
     "p-queue": "^7.3.0",
-    "readable-stream": "~3.6.0"
+    "readable-stream": "~4.3.0"
   },
   "standard": {
     "env": [
@@ -40,9 +40,9 @@
     ]
   },
   "devDependencies": {
-    "@babel/core": "^7.11.4",
-    "@babel/preset-env": "^7.11.0",
-    "@babel/runtime": "^7.11.2",
+    "@babel/core": "^7.20.12",
+    "@babel/preset-env": "^7.20.2",
+    "@babel/runtime": "^7.20.7",
     "assert": "^2.0.0",
     "babel-loader": "^8.2.2",
     "browserify-fs": "^1.0.0",
@@ -52,9 +52,8 @@
     "ipfsd-ctl": "^10.0.3",
     "json-loader": "~0.5.7",
     "markdown-toc": "^1.2.0",
-    "memdown": "^6.0.0",
-    "mocha": "^8.1.1",
-    "mocha-headless-chrome": "^3.1.0",
+    "mocha": "^10.2.0",
+    "mocha-headless-chrome": "^4.0.0",
     "node-polyfill-webpack-plugin": "^1.1.4",
     "node-pre-gyp": "^0.13.0",
     "nyc": "^15.1.0",
@@ -65,11 +64,11 @@
     "orbit-db-test-utils": "^2.2.0",
     "path-browserify": "^1.0.1",
     "process": "^0.11.10",
-    "rimraf": "^3.0.0",
-    "standard": "^16.0.3",
+    "rimraf": "^3.0.2",
+    "standard": "^17.0.0",
     "stream-browserify": "^3.0.0",
-    "webpack": "^5.37.1",
-    "webpack-cli": "^4.7.0"
+    "webpack": "^5.57.1",
+    "webpack-cli": "^5.0.1"
   },
   "localMaintainers": [
     "haad <haad@haja.io>",

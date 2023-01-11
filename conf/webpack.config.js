@@ -1,32 +1,47 @@
-'use strict'
+import path from 'path'
+import webpack from 'webpack'
+import { fileURLToPath } from 'url'
+import { createRequire } from 'module'
 
-const path = require('path')
+export default (env, argv) => {
+  const require = createRequire(import.meta.url)
+  const __filename = fileURLToPath(import.meta.url)
+  const __dirname = path.dirname(__filename)
 
-module.exports = {
-  entry: './src/Store.js',
-  output: {
-    libraryTarget: 'var',
-    library: 'Store',
-    filename: 'orbit-db-store.min.js'
-  },
-  target: 'web',
-  mode: 'production',
-  devtool: 'source-map',
-  plugins: [
-  ],
-  resolve: {
-    modules: [
-      'node_modules',
-      path.resolve(__dirname, '../node_modules')
+  return {
+    mode: 'production',
+    entry: './src/Store.js',
+    output: {
+      libraryTarget: 'var',
+      library: 'Store',
+      filename: '../dist/orbit-db-store.min.js'
+    },
+    target: 'web',
+    devtool: 'source-map',
+    externals: {
+      fs: '{}',
+      mkdirp: '{}'
+    },
+    plugins: [
+      new webpack.DefinePlugin({
+        'process.env.NODE_ENV': JSON.stringify('production')
+      })
     ],
-    fallback: {
-      path: require.resolve('path-browserify')
+    resolve: {
+      modules: [
+        'node_modules'
+      ],
+      fallback: {
+        path: require.resolve('path-browserify')
+      }
+    },
+    resolveLoader: {
+      modules: [
+        'node_modules',
+        path.resolve(__dirname, '../node_modules')
+      ],
+      extensions: ['.js', '.json'],
+      mainFields: ['loader', 'main']
     }
-  },
-  resolveLoader: {
-    modules: [
-      'node_modules',
-      path.resolve(__dirname, '../node_modules')
-    ]
   }
 }

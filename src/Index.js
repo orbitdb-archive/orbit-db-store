@@ -1,5 +1,3 @@
-'use strict'
-
 /*
   Index
 
@@ -25,7 +23,7 @@
   ```
 */
 
-class Index {
+export default class Index {
   /*
     @param id - unique identifier of this index, eg. a user id or a hash
   */
@@ -51,5 +49,3 @@ class Index {
     this._index = oplog.values
   }
 }
-
-module.exports = Index

@@ -266,10 +266,10 @@ this._addOperation({
 You can create a custom data stores that stores data in a way you need it to. To do this, you need to import `orbit-db-store` to your custom store and extend your store class from orbit-db-store's `Store`. Below is the `orbit-db-kvstore` which is a custom data store for `orbit-db`.
 
 ```javascript
-const Store         = require('orbit-db-store');
-const KeyValueIndex = require('./KeyValueIndex');
+import Store from 'orbit-db-store';
+import KeyValueIndex from './KeyValueIndex.js';
 
-class KeyValueStore extends Store {
+export default class KeyValueStore extends Store {
   constructor(ipfs, identity, address, options) {
     Object.assign(options || {}, { Index: KeyValueIndex });
     super(ipfs, identity, address, options)
@@ -305,11 +305,9 @@ class KeyValueStore extends Store {
     });
   }
 }
-
-module.exports = KeyValueStore;
 ```
 
-### Indicies
+### Indices
 The `Store` class instances do not store the current state of the Store.
 
 Index contains the state of a datastore, ie. what data we currently have.
@@ -330,9 +328,7 @@ const Index = new Index(userId)
 The `KeyValueIndex` is implemented as follows and then used by `KeyValueStore`.
 
 ```js
-'use strict'
-
-class KeyValueIndex {
+export default class KeyValueIndex {
   constructor() {
     this._index = {}
   }
@@ -358,8 +354,6 @@ class KeyValueIndex {
       }, [])
   }
 }
-
-module.exports = KeyValueIndex
 ```
 [KeyValueIndex.js](https://github.com/orbitdb/orbit-db-kvstore/blob/master/src/KeyValueIndex.js)
 

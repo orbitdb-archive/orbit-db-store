@@ -1,12 +1,12 @@
-const PQueue = require('p-queue').default
-const Log = require('ipfs-log')
+import PQueue from 'p-queue'
+import Log from 'ipfs-log'
 
 const getNextAndRefsUnion = e => [...new Set([...e.next, ...e.refs])]
 const flatMap = (res, val) => res.concat(val)
 
 const defaultConcurrency = 32
 
-class Replicator {
+export default class Replicator {
   constructor (store, concurrency) {
     this._store = store
     this._concurrency = concurrency || defaultConcurrency
@@ -181,5 +181,3 @@ class Replicator {
     return log
   }
 }
-
-module.exports = Replicator

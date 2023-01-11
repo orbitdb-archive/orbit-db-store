@@ -1,16 +1,14 @@
-const assert = require('assert')
-const Log = require('ipfs-log')
-
-const Keystore = require('orbit-db-keystore')
-const IdentityProvider = require('orbit-db-identity-provider')
-const Replicator = require('../src/Replicator')
-
-const {
+import assert from 'assert'
+import Log from 'ipfs-log'
+import Keystore from 'orbit-db-keystore'
+import IdentityProvider from 'orbit-db-identity-provider'
+import Replicator from '../src/Replicator.js'
+import {
   config,
   testAPIs,
   startIpfs,
   stopIpfs
-} = require('orbit-db-test-utils')
+} from 'orbit-db-test-utils'
 
 // Tests timeout
 const timeout = 30000

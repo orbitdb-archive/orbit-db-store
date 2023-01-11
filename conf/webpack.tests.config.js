@@ -35,11 +35,7 @@ export default (env, argv) => {
     },
     externals: {
       fs: '{ existsSync: () => true }',
-      fatfs: '{}',
-      runtimejs: '{}',
-      'graceful-fs': '{}',
       'fs-extra': '{ copy: () => {} }',
-      'fs.realpath': '{}'
     },
     module: {
       rules: [

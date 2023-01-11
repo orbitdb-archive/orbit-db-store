@@ -12,7 +12,6 @@ import {
   stopIpfs
 } from 'orbit-db-test-utils'
 
-
 const storage = storageAdapter()
 
 Object.keys(testAPIs).forEach((IPFS) => {

@@ -13,7 +13,7 @@ const logger = Logger.create('orbit-db.store', { color: Logger.Colors.Blue })
 Logger.setLogLevel('ERROR')
 
 const DefaultOptions = {
-  Index: Index,
+  Index,
   maxHistory: -1,
   fetchEntryTimeout: null,
   referenceCount: 32,

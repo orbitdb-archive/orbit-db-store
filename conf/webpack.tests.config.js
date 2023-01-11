@@ -35,7 +35,7 @@ export default (env, argv) => {
     },
     externals: {
       fs: '{ existsSync: () => true }',
-      'fs-extra': '{ copy: () => {} }',
+      'fs-extra': '{ copy: () => {} }'
     },
     module: {
       rules: [

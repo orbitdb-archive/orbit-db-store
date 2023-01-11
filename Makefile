@@ -15,6 +15,8 @@ clean:
 	rm -rf ipfs/
 	rm -rf orbitdb/
 	rm -rf keystore/
+	rm -rf cache/
+	rm -rf identity/
 	rm -rf node_modules/
 
 clean-dependencies: clean

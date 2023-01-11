@@ -3,6 +3,7 @@ import Store, { DefaultOptions } from '../src/Store.js'
 import Cache from 'orbit-db-cache'
 import Keystore from 'orbit-db-keystore'
 import IdentityProvider from 'orbit-db-identity-provider'
+import storageAdapter from 'orbit-db-storage-adapter'
 // Test utils
 import {
   config,
@@ -11,10 +12,7 @@ import {
   stopIpfs
 } from 'orbit-db-test-utils'
 
-import storageAdapter from 'orbit-db-storage-adapter'
-import memdown from 'memdown'
-
-const storage = storageAdapter(memdown)
+const storage = storageAdapter()
 
 Object.keys(testAPIs).forEach((IPFS) => {
   describe(`Events ${IPFS}`, function () {

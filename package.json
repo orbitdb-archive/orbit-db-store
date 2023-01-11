@@ -48,7 +48,7 @@
     "browserify-fs": "^1.0.0",
     "eslint": "^7.32.0",
     "go-ipfs": "^0.9.1",
-    "ipfs": "^0.58.2",
+    "ipfs": "^0.65.0",
     "ipfsd-ctl": "^10.0.3",
     "json-loader": "~0.5.7",
     "markdown-toc": "^1.2.0",
